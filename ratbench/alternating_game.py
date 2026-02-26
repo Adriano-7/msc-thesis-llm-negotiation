@@ -64,6 +64,7 @@ class AlternatingGame(Game):
         response,
     ):
         try:
+            print("MODEL RESPONSE:", response)
             agent_message = self.game_interface.parse(response)
         except Exception as e:
             print("response : {}".format(response))

@@ -6,16 +6,15 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --partition=x86  # Change to the specific GPU partition name (e.g., 'gpu' or check 'sinfo')
-#SBATCH --gres=gpu:1     # Request 1 GPU
+#SBATCH -p normal
+#SBATCH --qos=gpu_batch
+#SBATCH --gres=gpu:1
 
-# Load the same module used during creation
-module load Python/3.12.3-GCCcore-13.3.0
+# Load env variables
+set -a
+source .env
+set +a
 
-# Activate the x86/GPU environment created earlier
-source venv_x86/bin/activate
+export HF_HOME="/data/01/up202105352/huggingface"
 
-# Set HF Token if accessing a gated model (Qwen usually requires it)
-
-# Run the game
-python runner/buysell_qwen.py
+python3 runner/buysell_qwen.py

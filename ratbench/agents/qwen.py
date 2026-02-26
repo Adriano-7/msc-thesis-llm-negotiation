@@ -30,6 +30,17 @@ class QwenAgent(Agent):
             device_map="auto"
         )
 
+    def __deepcopy__(self, memo):
+        from copy import deepcopy
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+        for k, v in self.__dict__.items():
+            if k in ("model", "tokenizer"):
+                v = v.__class__.__name__
+            setattr(result, k, deepcopy(v, memo))
+        return result
+
     def init_agent(self, system_prompt, role):
         if AGENT_ONE in self.agent_name:
             self.conversation.append({"role": "system", "content": system_prompt})
