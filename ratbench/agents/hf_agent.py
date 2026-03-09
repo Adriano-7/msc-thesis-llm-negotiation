@@ -84,8 +84,18 @@ class HuggingFaceAgent(Agent):
             raise ValueError(f"Agent name must contain {AGENT_ONE} or {AGENT_TWO}")
 
     def chat(self) -> str:
+        messages = [{"role": m["role"], "content": m["content"]} for m in self.conversation]
+        
+        if "gemma" in self.model_id.lower() and messages and messages[0]["role"] == "system":
+            sys_content = messages.pop(0)["content"]
+            
+            if messages and messages[0]["role"] == "user":
+                messages[0]["content"] = f"{sys_content}\n\n{messages[0]['content']}"
+            else:
+                messages.insert(0, {"role": "user", "content": sys_content})
+
         text = self.tokenizer.apply_chat_template(
-            self.conversation,
+            messages, 
             tokenize=False,
             add_generation_prompt=True,
         )
@@ -101,7 +111,7 @@ class HuggingFaceAgent(Agent):
             gen_kwargs["do_sample"] = True
 
         output_ids = self.model.generate(**inputs, **gen_kwargs)
-        # Trim input tokens
+
         new_tokens = output_ids[0][inputs.input_ids.shape[1] :]
         return self.tokenizer.decode(new_tokens, skip_special_tokens=True)
 
