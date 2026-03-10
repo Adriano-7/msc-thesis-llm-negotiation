@@ -18,7 +18,8 @@ NUM_RUNS="${2:-}"
 
 # Models to run — edit this list to match your experiments.yaml
 MODELS=(
-    "Openai/gpt-oss-20b"
+    "Qwen/Qwen3-30B-A3B-Instruct-2507"
+    #"Openai/gpt-oss-20b"
     # "deepseek-ai/DeepSeek-V2-Lite-Chat"
     # "mistralai/Mistral-7B-Instruct-v0.3"
 )
