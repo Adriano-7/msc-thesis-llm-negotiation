@@ -47,6 +47,7 @@ def _load_model(model_id: str, dtype=torch.bfloat16, device_map="auto"):
             trust_remote_code=True,
             quantization_config=quantization_config
         )
+        
         _SHARED_MODELS[model_id] = (model, tokenizer)
     return _SHARED_MODELS[model_id]
 
