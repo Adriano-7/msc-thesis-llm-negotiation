@@ -3,10 +3,12 @@ Directory structure:
     ├── README.md
     ├── ADDING_A_GAME.md
     ├── MIA_Server.md
+    ├── oss_medium_models_plots.ipynb
+    ├── oss_small_models_plots.ipynb
     ├── requirements.txt
+    ├── section_two_small_oss_plots.ipynb
     ├── _notebooks/
     │   ├── clean_logs.ipynb
-    │   ├── oss_models_plots.ipynb
     │   ├── section_one_plots.ipynb
     │   ├── section_three_plots.ipynb
     │   └── section_two_plots.ipynb
@@ -412,6 +414,1125 @@ This project is an ongoing effort from the CSE department. Sudden changes may oc
 
 
 ================================================
+FILE: oss_medium_models_plots.ipynb
+================================================
+# Jupyter notebook converted to Python script.
+
+import os
+import json
+import numpy as np
+import pandas as pd
+import matplotlib
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import seaborn as sns
+import warnings
+from pandas.errors import SettingWithCopyWarning
+
+warnings.simplefilter(action='ignore', category=(SettingWithCopyWarning))
+warnings.filterwarnings('ignore')
+
+colormap = sns.color_palette("Blues")
+sns.set_context("poster")
+sns.set_palette("colorblind")
+matplotlib.rcParams.update({'font.size': 22})
+sns.set(font_scale=2.4)
+
+AGENTS = [
+    "Qwen/Qwen3-30B-A3B-Instruct-2507",
+    "google/gemma-3-27b-it",
+]
+AGENTS_CLEAN_NAMES = ["Qwen3-30B", "Gemma-3-27B"]
+rename_dict = dict(zip(AGENTS, AGENTS_CLEAN_NAMES))
+# Some runs logged the model ID in lowercase — treat as the same model
+rename_dict["Qwen/qwen3-30b-a3b-instruct-2507"] = "Qwen3-30B"
+
+LOGS_ROOT = ".logs/medium_models"
+
+os.makedirs("_notebooks/figures", exist_ok=True)
+
+"""
+#### Utils
+"""
+
+def load_games_from_dir(log_dir):
+    records = []
+    for root, dirs, files in os.walk(log_dir):
+        if "game_state.json" not in files:
+            continue
+        path = os.path.join(root, "game_state.json")
+        try:
+            with open(path) as f:
+                data = json.load(f)
+            last = data["game_state"][-1]
+            if last.get("current_iteration") != "END":
+                continue
+            summary = last["summary"]
+            players = data["players"]
+            records.append({
+                "path": path,
+                "game_class": data["class"],
+                "model_1": players[0].get("model_id", players[0].get("model")),
+                "model_2": players[1].get("model_id", players[1].get("model")),
+                "summary": summary,
+            })
+        except Exception as e:
+            print(f"Skipping {path}: {e}")
+    print(f"Found {len(records)} completed games in {log_dir}")
+    return records
+
+
+def resource_value(res):
+    return sum(res["_value"].values())
+
+
+def replace_names(df):
+    df = df.copy()
+    df["model_1"] = df["model_1"].replace(rename_dict)
+    df["model_2"] = df["model_2"].replace(rename_dict)
+    return df
+
+"""
+## Game Completion Rates
+"""
+
+def load_completion_stats(log_dirs):
+    """Count total vs completed games per model pairing for each game type."""
+    rows = []
+    for game_name, log_dir in log_dirs.items():
+        for root, dirs, files in os.walk(log_dir):
+            if "game_state.json" not in files:
+                continue
+            path = os.path.join(root, "game_state.json")
+            try:
+                with open(path) as f:
+                    data = json.load(f)
+                players = data["players"]
+                last = data["game_state"][-1]
+                completed = last.get("current_iteration") == "END"
+                rows.append({
+                    "game": game_name,
+                    "model_1": players[0].get("model_id", players[0].get("model", "unknown")),
+                    "model_2": players[1].get("model_id", players[1].get("model", "unknown")),
+                    "completed": completed,
+                })
+            except Exception:
+                pass
+    return pd.DataFrame(rows)
+
+
+log_dirs = {
+    "Trading": os.path.join(LOGS_ROOT, "trading_section_one"),
+    "Ultimatum": os.path.join(LOGS_ROOT, "ultimatum_section_one"),
+    "BuySell": os.path.join(LOGS_ROOT, "buysell_section_one"),
+}
+
+df_raw = load_completion_stats(log_dirs)
+df_raw["model_1"] = df_raw["model_1"].replace(rename_dict)
+df_raw["model_2"] = df_raw["model_2"].replace(rename_dict)
+df_raw["pairing"] = df_raw["model_1"] + " vs " + df_raw["model_2"]
+
+agg = df_raw.groupby(["game", "pairing"]).agg(
+    total=("completed", "count"),
+    completed=("completed", "sum"),
+).reset_index()
+agg["pct"] = agg["completed"] / agg["total"] * 100
+
+games = agg["game"].unique()
+pairings = sorted(agg["pairing"].unique())
+x = np.arange(len(games))
+width = 0.8 / len(pairings)
+
+fig, ax = plt.subplots(figsize=(14, 6))
+colors = sns.color_palette("colorblind", len(pairings))
+
+for i, pairing in enumerate(pairings):
+    sub = agg[agg["pairing"] == pairing].set_index("game")
+    vals = [sub.loc[g, "pct"] if g in sub.index else 0 for g in games]
+    bars = ax.bar(x + i * width, vals, width, label=pairing, color=colors[i])
+    for bar, val in zip(bars, vals):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            val - 7,
+            f"{val:.0f}%",
+            ha="center", va="top", fontsize=12, color="white", fontweight="bold",
+        )
+
+ax.set_xticks(x + width * (len(pairings) - 1) / 2)
+ax.set_xticklabels(games, fontsize=20)
+ax.set_ylabel("% Games Completed", fontsize=20)
+ax.set_title("Game Completion Rate by Game Type and Model Pairing", fontsize=22)
+ax.set_ylim(0, 100)
+ax.legend(title="Model Pairing", bbox_to_anchor=(1.01, 1), loc="upper left", fontsize=14)
+fig.tight_layout()
+plt.savefig("_notebooks/figures/medium_completion_rate.pdf", bbox_inches="tight")
+plt.show()
+
+# --- Per-model completion rate ---
+df_m1 = df_raw[["game", "model_1", "completed"]].rename(columns={"model_1": "model"})
+df_m2 = df_raw[["game", "model_2", "completed"]].rename(columns={"model_2": "model"})
+agg_model = (
+    pd.concat([df_m1, df_m2])
+    .groupby(["game", "model"])
+    .agg(total=("completed", "count"), completed=("completed", "sum"))
+    .reset_index()
+)
+agg_model["pct"] = agg_model["completed"] / agg_model["total"] * 100
+
+games_list = sorted(agg_model["game"].unique())
+models_list = AGENTS_CLEAN_NAMES
+x2 = np.arange(len(models_list))
+width2 = 0.8 / len(games_list)
+
+fig2, ax2 = plt.subplots(figsize=(12, 6))
+game_colors = sns.color_palette("colorblind", len(games_list))
+
+for i, game in enumerate(games_list):
+    sub = agg_model[agg_model["game"] == game].set_index("model")
+    vals = [sub.loc[m, "pct"] if m in sub.index else 0 for m in models_list]
+    ax2.bar(x2 + i * width2, vals, width2, label=game, color=game_colors[i])
+
+ax2.set_xticks(x2 + width2 * (len(games_list) - 1) / 2)
+ax2.set_xticklabels(models_list, fontsize=20)
+ax2.set_ylabel("% Games Completed", fontsize=20)
+ax2.set_title("Completion Rate by Model and Game Type", fontsize=22)
+ax2.set_ylim(0, 100)
+ax2.legend(title="Game", fontsize=14)
+fig2.tight_layout()
+plt.savefig("_notebooks/figures/medium_completion_rate_by_model.pdf", bbox_inches="tight")
+plt.show()
+
+
+# Output:
+#   <Figure size 1400x600 with 1 Axes>
+#   <Figure size 1200x600 with 1 Axes>
+
+"""
+## Trading
+"""
+
+records = load_games_from_dir(os.path.join(LOGS_ROOT, "trading_section_one"))
+
+rows = []
+for r in records:
+    s = r["summary"]
+    init = s["initial_resources"]
+    final = s["final_resources"]
+    delta_1 = resource_value(final[0]) - resource_value(init[0])
+    delta_2 = resource_value(final[1]) - resource_value(init[1])
+    rows.append({
+        "game_name": r["game_class"],
+        "model_1": r["model_1"],
+        "model_2": r["model_2"],
+        "resource_delta_1": delta_1,
+        "resource_delta_2": delta_2,
+    })
+
+trading_df = replace_names(pd.DataFrame(rows))
+trading_df.head()
+# Output:
+#   Found 100 completed games in .logs/medium_models/trading_section_one
+
+#        game_name    model_1      model_2  resource_delta_1  resource_delta_2
+
+#   0  TradingGame  Qwen3-30B  Gemma-3-27B                 0                 0
+
+#   1  TradingGame  Qwen3-30B  Gemma-3-27B                 7                -7
+
+#   2  TradingGame  Qwen3-30B  Gemma-3-27B                 5                -5
+
+#   3  TradingGame  Qwen3-30B  Gemma-3-27B                -2                 2
+
+#   4  TradingGame  Qwen3-30B  Gemma-3-27B                 8                -8
+
+print("Total trading games:", len(trading_df))
+print("Games per pairing:")
+print(trading_df.groupby(["model_1", "model_2"]).size().to_string())
+# Output:
+#   Total trading games: 100
+
+#   Games per pairing:
+
+#   model_1      model_2    
+
+#   Gemma-3-27B  Gemma-3-27B    28
+
+#                Qwen3-30B      22
+
+#   Qwen3-30B    Gemma-3-27B    27
+
+#                Qwen3-30B      23
+
+
+def trading_aggregation(df):
+    df = df.copy()
+    df["models"] = df["model_1"] + "@" + df["model_2"]
+    df["win_1"] = df["resource_delta_1"] > df["resource_delta_2"]
+    df["win_2"] = df["resource_delta_1"] < df["resource_delta_2"]
+
+    agg = df.groupby(["game_name", "models"])[
+        ["win_1", "win_2", "resource_delta_1", "resource_delta_2"]
+    ].mean().reset_index()
+
+    agg[["model_1", "model_2"]] = agg["models"].str.split("@", n=1, expand=True)
+    total_decisive = agg["win_1"] + agg["win_2"]
+    agg["win_1"] = agg["win_1"] / total_decisive
+    agg["win_2"] = agg["win_2"] / total_decisive
+    return agg
+
+
+aggregated = trading_aggregation(trading_df)
+aggregated
+# Output:
+#        game_name                   models     win_1     win_2  resource_delta_1  \
+
+#   0  TradingGame  Gemma-3-27B@Gemma-3-27B  0.166667  0.833333         -3.785714   
+
+#   1  TradingGame    Gemma-3-27B@Qwen3-30B  0.000000  1.000000         -5.000000   
+
+#   2  TradingGame    Qwen3-30B@Gemma-3-27B  0.900000  0.100000          3.296296   
+
+#   3  TradingGame      Qwen3-30B@Qwen3-30B  0.250000  0.750000         -0.652174   
+
+#   
+
+#      resource_delta_2      model_1      model_2  
+
+#   0          3.785714  Gemma-3-27B  Gemma-3-27B  
+
+#   1          5.000000  Gemma-3-27B    Qwen3-30B  
+
+#   2         -3.296296    Qwen3-30B  Gemma-3-27B  
+
+#   3          0.652174    Qwen3-30B    Qwen3-30B  
+
+fig, axs = plt.subplots(figsize=(17.6, 8), ncols=2)
+fig.tight_layout()
+
+# Win Rate heatmap
+local = aggregated.pivot(index="model_2", columns="model_1", values="win_2")
+local = local.reindex(AGENTS_CLEAN_NAMES, axis=1).reindex(AGENTS_CLEAN_NAMES)
+
+p1 = sns.heatmap(local, annot=True, fmt=".2f", cmap=colormap, ax=axs[0])
+p1.set_ylabel("Player 2", fontdict=dict(weight="bold", size=30))
+p1.set_xlabel("Player 1", fontdict=dict(weight="bold", size=30))
+p1.set_title("Win Rate")
+p1.set_xticklabels(AGENTS_CLEAN_NAMES, rotation=30, ha="right", fontsize=18)
+p1.set_yticklabels(AGENTS_CLEAN_NAMES, rotation=0, va="center", fontsize=18)
+
+# Payoff heatmap
+local = aggregated.pivot(index="model_2", columns="model_1", values="resource_delta_2")
+local = local.reindex(AGENTS_CLEAN_NAMES, axis=1).reindex(AGENTS_CLEAN_NAMES)
+
+p2 = sns.heatmap(local, annot=True, fmt=".2f", cmap=colormap, ax=axs[1])
+p2.set_ylabel("")
+p2.set_xlabel("Player 1", fontdict=dict(weight="bold", size=30))
+p2.set_title("Payoff")
+p2.set_xticklabels(AGENTS_CLEAN_NAMES, rotation=30, ha="right", fontsize=18)
+p2.set_yticklabels([], fontsize=18)
+
+fig.suptitle("Trading Game — Medium Models", fontsize=28, y=1.02)
+fig.tight_layout()
+plt.savefig("_notebooks/figures/medium_trading.pdf", bbox_inches="tight")
+plt.show()
+# Output:
+#   <Figure size 1760x800 with 4 Axes>
+
+"""
+## Ultimatum
+"""
+
+records = load_games_from_dir(os.path.join(LOGS_ROOT, "ultimatum_section_one"))
+
+rows = []
+for r in records:
+    s = r["summary"]
+    init = s["initial_resources"]
+    final = s["final_resources"]
+    delta_1 = resource_value(final[0]) - resource_value(init[0])
+    delta_2 = resource_value(final[1]) - resource_value(init[1])
+    rows.append({
+        "game_name": r["game_class"],
+        "model_1": r["model_1"],
+        "model_2": r["model_2"],
+        "resource_delta_1": delta_1,
+        "resource_delta_2": delta_2,
+    })
+
+ultimatum_df = replace_names(pd.DataFrame(rows))
+
+ultimatum_df["resource_delta_1"] = ultimatum_df["resource_delta_1"] + 100
+ultimatum_df.loc[ultimatum_df["resource_delta_1"] == 100, "resource_delta_1"] = 0
+
+ultimatum_df.head()
+# Output:
+#   Found 113 completed games in .logs/medium_models/ultimatum_section_one
+
+#                   game_name    model_1      model_2  resource_delta_1  \
+
+#   0  MultiTurnUltimatumGame  Qwen3-30B  Gemma-3-27B                80   
+
+#   1  MultiTurnUltimatumGame  Qwen3-30B  Gemma-3-27B                99   
+
+#   2  MultiTurnUltimatumGame  Qwen3-30B  Gemma-3-27B                99   
+
+#   3  MultiTurnUltimatumGame  Qwen3-30B  Gemma-3-27B                99   
+
+#   4  MultiTurnUltimatumGame  Qwen3-30B  Gemma-3-27B                80   
+
+#   
+
+#      resource_delta_2  
+
+#   0                20  
+
+#   1                 1  
+
+#   2                 1  
+
+#   3                 1  
+
+#   4                20  
+
+print("Total ultimatum games:", len(ultimatum_df))
+print("\nGames per pairing:")
+print(ultimatum_df.groupby(["model_1", "model_2"]).size().to_string())
+print("\nNo-deal rate per pairing:")
+no_deal = ultimatum_df.copy()
+no_deal["no_deal"] = (no_deal["resource_delta_1"] == 0) & (no_deal["resource_delta_2"] == 0)
+print(no_deal.groupby(["model_1", "model_2"])["no_deal"].mean().to_string())
+# Output:
+#   Total ultimatum games: 113
+
+#   
+
+#   Games per pairing:
+
+#   model_1      model_2    
+
+#   Gemma-3-27B  Gemma-3-27B    30
+
+#                Qwen3-30B      30
+
+#   Qwen3-30B    Gemma-3-27B    27
+
+#                Qwen3-30B      26
+
+#   
+
+#   No-deal rate per pairing:
+
+#   model_1      model_2    
+
+#   Gemma-3-27B  Gemma-3-27B    0.333333
+
+#                Qwen3-30B      0.033333
+
+#   Qwen3-30B    Gemma-3-27B    0.000000
+
+#                Qwen3-30B      0.038462
+
+
+def ultimatum_aggregation(df):
+    df = df.copy()
+    df["models"] = df["model_1"] + "@" + df["model_2"]
+    df["win_1"] = df["resource_delta_1"] > df["resource_delta_2"]
+    df["win_2"] = df["resource_delta_1"] < df["resource_delta_2"]
+
+    agg = df.groupby(["game_name", "models"])[
+        ["win_1", "win_2", "resource_delta_1", "resource_delta_2"]
+    ].mean().reset_index()
+
+    agg[["model_1", "model_2"]] = agg["models"].str.split("@", n=1, expand=True)
+    total_decisive = agg["win_1"] + agg["win_2"]
+    agg["win_1"] = agg["win_1"] / total_decisive
+    agg["win_2"] = agg["win_2"] / total_decisive
+    return agg
+
+
+aggregated = ultimatum_aggregation(ultimatum_df)
+aggregated
+# Output:
+#                   game_name                   models     win_1     win_2  \
+
+#   0  MultiTurnUltimatumGame  Gemma-3-27B@Gemma-3-27B  0.888889  0.111111   
+
+#   1  MultiTurnUltimatumGame    Gemma-3-27B@Qwen3-30B  0.961538  0.038462   
+
+#   2  MultiTurnUltimatumGame    Qwen3-30B@Gemma-3-27B  1.000000  0.000000   
+
+#   3  MultiTurnUltimatumGame      Qwen3-30B@Qwen3-30B  1.000000  0.000000   
+
+#   
+
+#      resource_delta_1  resource_delta_2      model_1      model_2  
+
+#   0         41.666667         25.000000  Gemma-3-27B  Gemma-3-27B  
+
+#   1         79.000000         17.666667  Gemma-3-27B    Qwen3-30B  
+
+#   2         84.518519         15.481481    Qwen3-30B  Gemma-3-27B  
+
+#   3         73.730769         22.423077    Qwen3-30B    Qwen3-30B  
+
+fig, axs = plt.subplots(figsize=(17.6, 8), ncols=2)
+
+# Win Rate heatmap (P1 perspective: P1 is proposer)
+local = aggregated.pivot(index="model_1", columns="model_2", values="win_1")
+local = local.reindex(AGENTS_CLEAN_NAMES, axis=1).reindex(AGENTS_CLEAN_NAMES)
+
+p1 = sns.heatmap(local, annot=True, fmt=".2f", cmap=colormap, ax=axs[0])
+p1.set_title("Win Rate")
+p1.set_ylabel("Player 1 (Proposer)", fontdict=dict(weight="bold", size=30))
+p1.set_xlabel("Player 2 (Responder)", fontdict=dict(weight="bold", size=30))
+p1.set_xticklabels(AGENTS_CLEAN_NAMES, rotation=30, ha="right", fontsize=18)
+p1.set_yticklabels(AGENTS_CLEAN_NAMES, rotation=0, va="center", fontsize=18)
+
+# Payoff heatmap
+local = aggregated.pivot(index="model_1", columns="model_2", values="resource_delta_1")
+local = local.reindex(AGENTS_CLEAN_NAMES, axis=1).reindex(AGENTS_CLEAN_NAMES)
+
+p2 = sns.heatmap(local, annot=True, fmt=".1f", cmap=colormap, ax=axs[1])
+p2.set_ylabel("")
+p2.set_xlabel("Player 2 (Responder)", fontdict=dict(weight="bold", size=30))
+p2.set_title("Proposer Payoff")
+p2.set_xticklabels(AGENTS_CLEAN_NAMES, rotation=30, ha="right", fontsize=18)
+p2.set_yticklabels([], fontsize=18)
+
+fig.suptitle("Ultimatum Game — Medium Models", fontsize=28, y=1.02)
+fig.tight_layout()
+plt.savefig("_notebooks/figures/medium_ultimatum.pdf", bbox_inches="tight")
+plt.show()
+# Output:
+#   <Figure size 1760x800 with 4 Axes>
+
+"""
+## Seller and Buyer
+"""
+
+records = load_games_from_dir(os.path.join(LOGS_ROOT, "buysell_section_one"))
+
+rows = []
+for r in records:
+    s = r["summary"]
+    outcome = s["player_outcome"]
+    vals = s["player_valuation"]
+    val_1 = vals[0]["_value"]["X"] if vals and vals[0] else None
+    val_2 = vals[1]["_value"]["X"] if vals and vals[1] else None
+    rows.append({
+        "game_name": r["game_class"],
+        "model_1": r["model_1"],
+        "model_2": r["model_2"],
+        "outcome_1": outcome[0],
+        "outcome_2": outcome[1],
+        "vals1": val_1,
+        "vals2": val_2,
+    })
+
+buysell_df = replace_names(pd.DataFrame(rows))
+buysell_df.head()
+# Output:
+#   Found 135 completed games in .logs/medium_models/buysell_section_one
+
+#        game_name    model_1      model_2  outcome_1  outcome_2  vals1  vals2
+
+#   0  BuySellGame  Qwen3-30B  Gemma-3-27B         -6         26     40     60
+
+#   1  BuySellGame  Qwen3-30B  Gemma-3-27B          5         15     40     60
+
+#   2  BuySellGame  Qwen3-30B  Gemma-3-27B         -5         25     40     60
+
+#   3  BuySellGame  Qwen3-30B  Gemma-3-27B          5         15     40     60
+
+#   4  BuySellGame  Qwen3-30B  Gemma-3-27B          0         20     40     60
+
+print("Total buy-sell games:", len(buysell_df))
+print("\nAvailable seller valuations:", sorted(buysell_df["vals1"].unique()))
+
+gb = buysell_df.groupby("vals1")
+groups = {k: v.copy() for k, v in gb}
+
+print("\nGames per valuation x pairing:")
+for val, gdf in sorted(groups.items()):
+    print(f"  Seller valuation={val}:")
+    print(gdf.groupby(["model_1", "model_2"]).size().to_string())
+# Output:
+#   Total buy-sell games: 135
+
+#   
+
+#   Available seller valuations: [40]
+
+#   
+
+#   Games per valuation x pairing:
+
+#     Seller valuation=40:
+
+#   model_1      model_2    
+
+#   Gemma-3-27B  Gemma-3-27B    30
+
+#                Qwen3-30B      29
+
+#   Qwen3-30B    Gemma-3-27B    29
+
+#                Qwen3-30B      47
+
+
+seller_at_40 = groups.get(40, pd.DataFrame())
+print(f"Seller at 40 (buyer at 60): {len(seller_at_40)} games")
+
+# Filter broken games: buyer profit ∈ [-100, 60]
+valid = seller_at_40[
+    (seller_at_40["outcome_2"] >= -100) & (seller_at_40["outcome_2"] <= 60)
+]
+print(f"Filtered {len(seller_at_40) - len(valid)} outlier games")
+
+agg = (
+    valid.groupby(["model_1", "model_2"])["outcome_2"]
+    .agg(["mean", "sem", "count"])
+    .reset_index()
+)
+agg.columns = ["seller", "buyer", "outcome_mean", "outcome_sem", "n"]
+agg = agg[agg["n"] >= 2]
+
+fig, ax = plt.subplots(figsize=(14, 7))
+sns.barplot(
+    data=agg, x="buyer", y="outcome_mean", hue="seller",
+    palette="colorblind", capsize=0.1, ax=ax
+)
+ax.set_ylabel("Buyer Outcome (profit)", fontdict=dict(weight="bold", size=22))
+ax.set_xlabel("Buyer Model", fontdict=dict(weight="bold", size=22))
+ax.set_title("Seller at 40 — Buyer at 60")
+ax.legend(title="Seller", bbox_to_anchor=(1.02, 1), loc="upper left")
+ax.set_xticklabels(ax.get_xticklabels(), rotation=30, ha="right")
+
+fig.tight_layout()
+fig.savefig("_notebooks/figures/medium_seller_at_40.pdf", bbox_inches="tight")
+plt.show()
+
+print(agg.to_string(index=False))
+# Output:
+#   Seller at 40 (buyer at 60): 135 games
+
+#   Filtered 0 outlier games
+
+#   <Figure size 1400x700 with 1 Axes>
+#        seller       buyer  outcome_mean  outcome_sem  n
+
+#   Gemma-3-27B Gemma-3-27B      6.166667     1.167651 30
+
+#   Gemma-3-27B   Qwen3-30B     10.517241     0.918637 29
+
+#     Qwen3-30B Gemma-3-27B     15.793103     1.314357 29
+
+#     Qwen3-30B   Qwen3-30B     18.723404     0.736709 47
+
+
+"""
+### Buy-Sell — Outcome Heatmaps
+"""
+
+if len(valid) > 0:
+    fig, axs = plt.subplots(figsize=(17.6, 8), ncols=2)
+
+    for ax, (col, title) in zip(axs, [("outcome_1", "Seller Profit"), ("outcome_2", "Buyer Profit")]):
+        pivot_data = valid.groupby(["model_1", "model_2"])[col].mean().reset_index()
+        pivot = pivot_data.pivot(index="model_2", columns="model_1", values=col)
+        pivot = pivot.reindex(AGENTS_CLEAN_NAMES, axis=1).reindex(AGENTS_CLEAN_NAMES)
+
+        sns.heatmap(pivot, annot=True, fmt=".1f", cmap=colormap, ax=ax)
+        ax.set_title(title)
+        ax.set_ylabel("Buyer" if col == "outcome_2" else "Seller",
+                      fontdict=dict(weight="bold", size=24))
+        ax.set_xlabel("Seller" if col == "outcome_2" else "Buyer",
+                      fontdict=dict(weight="bold", size=24))
+        ax.set_xticklabels(AGENTS_CLEAN_NAMES, rotation=30, ha="right", fontsize=18)
+        ax.set_yticklabels(AGENTS_CLEAN_NAMES, rotation=0, va="center", fontsize=18)
+
+    fig.suptitle("Buy-Sell Game — Seller@40 / Buyer@60", fontsize=26, y=1.02)
+    fig.tight_layout()
+    plt.savefig("_notebooks/figures/medium_buysell_heatmap.pdf", bbox_inches="tight")
+    plt.show()
+# Output:
+#   <Figure size 1760x800 with 4 Axes>
+
+
+
+================================================
+FILE: oss_small_models_plots.ipynb
+================================================
+# Jupyter notebook converted to Python script.
+
+import os
+import json
+import numpy as np
+import pandas as pd
+import matplotlib
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import seaborn as sns
+import warnings
+from pandas.errors import SettingWithCopyWarning
+
+warnings.simplefilter(action='ignore', category=(SettingWithCopyWarning))
+warnings.filterwarnings('ignore')
+
+colormap = sns.color_palette("Blues")
+sns.set_context("poster")
+sns.set_palette("colorblind")
+matplotlib.rcParams.update({'font.size': 22})
+sns.set(font_scale=2.4)
+
+AGENTS = [
+    "Qwen/Qwen2.5-7B-Instruct",
+    "meta-llama/Meta-Llama-3-8B-Instruct",
+    "mistralai/Mistral-7B-Instruct-v0.2",
+]
+AGENTS_CLEAN_NAMES = ["Qwen2.5-7B", "Llama-3-8B", "Mistral-7B"]
+rename_dict = dict(zip(AGENTS, AGENTS_CLEAN_NAMES))
+
+LOGS_ROOT = ".logs/small_models"
+
+"""
+#### Utils
+"""
+
+def load_games_from_dir(log_dir):
+    records = []
+    for root, dirs, files in os.walk(log_dir):
+        if "game_state.json" not in files:
+            continue
+        path = os.path.join(root, "game_state.json")
+        try:
+            with open(path) as f:
+                data = json.load(f)
+            last = data["game_state"][-1]
+            if last.get("current_iteration") != "END":
+                continue
+            summary = last["summary"]
+            players = data["players"]
+            records.append({
+                "path": path,
+                "game_class": data["class"],
+                "model_1": players[0].get("model_id", players[0].get("model")),
+                "model_2": players[1].get("model_id", players[1].get("model")),
+                "summary": summary,
+            })
+        except Exception as e:
+            print(f"Skipping {path}: {e}")
+    print(f"Found {len(records)} completed games in {log_dir}")
+    return records
+
+
+def resource_value(res):
+    return sum(res["_value"].values())
+
+
+def replace_names(df):
+    df = df.copy()
+    df["model_1"] = df["model_1"].replace(rename_dict)
+    df["model_2"] = df["model_2"].replace(rename_dict)
+    return df
+
+"""
+## Game Completion Rates
+"""
+
+def load_completion_stats(log_dirs):
+    rows = []
+    for game_name, log_dir in log_dirs.items():
+        for root, dirs, files in os.walk(log_dir):
+            if "game_state.json" not in files:
+                continue
+            path = os.path.join(root, "game_state.json")
+            try:
+                with open(path) as f:
+                    data = json.load(f)
+                players = data["players"]
+                last = data["game_state"][-1]
+                completed = last.get("current_iteration") == "END"
+                rows.append({
+                    "game": game_name,
+                    "model_1": players[0].get("model_id", players[0].get("model", "unknown")),
+                    "model_2": players[1].get("model_id", players[1].get("model", "unknown")),
+                    "completed": completed,
+                })
+            except Exception:
+                pass
+    return pd.DataFrame(rows)
+
+
+log_dirs = {
+    "Trading": os.path.join(LOGS_ROOT, "trading_section_one"),
+    "Ultimatum": os.path.join(LOGS_ROOT, "ultimatum_section_one"),
+    "BuySell": os.path.join(LOGS_ROOT, "buysell_section_one"),
+}
+
+df_raw = load_completion_stats(log_dirs)
+df_raw["model_1"] = df_raw["model_1"].replace(rename_dict)
+df_raw["model_2"] = df_raw["model_2"].replace(rename_dict)
+df_raw["pairing"] = df_raw["model_1"] + " vs " + df_raw["model_2"]
+
+agg = df_raw.groupby(["game", "pairing"]).agg(
+    total=("completed", "count"),
+    completed=("completed", "sum"),
+).reset_index()
+agg["pct"] = agg["completed"] / agg["total"] * 100
+
+games = agg["game"].unique()
+pairings = sorted(agg["pairing"].unique())
+x = np.arange(len(games))
+width = 0.8 / len(pairings)
+
+fig, ax = plt.subplots(figsize=(14, 6))
+colors = sns.color_palette("colorblind", len(pairings))
+
+for i, pairing in enumerate(pairings):
+    sub = agg[agg["pairing"] == pairing].set_index("game")
+    vals = [sub.loc[g, "pct"] if g in sub.index else 0 for g in games]
+    ax.bar(x + i * width, vals, width, label=pairing, color=colors[i])
+
+ax.set_xticks(x + width * (len(pairings) - 1) / 2)
+ax.set_xticklabels(games, fontsize=20)
+ax.set_ylabel("% Games Completed", fontsize=20)
+ax.set_title("Game Completion Rate by Game Type and Model Pairing", fontsize=22)
+ax.set_ylim(0, 100)
+ax.legend(title="Model Pairing", bbox_to_anchor=(1.01, 1), loc="upper left", fontsize=14)
+fig.tight_layout()
+plt.savefig("_notebooks/figures/small_completion_rate.pdf", bbox_inches="tight")
+plt.show()
+
+# --- Per-model completion rate ---
+df_m1 = df_raw[["game", "model_1", "completed"]].rename(columns={"model_1": "model"})
+df_m2 = df_raw[["game", "model_2", "completed"]].rename(columns={"model_2": "model"})
+agg_model = (
+    pd.concat([df_m1, df_m2])
+    .groupby(["game", "model"])
+    .agg(total=("completed", "count"), completed=("completed", "sum"))
+    .reset_index()
+)
+agg_model["pct"] = agg_model["completed"] / agg_model["total"] * 100
+
+games_list = sorted(agg_model["game"].unique())
+models_list = AGENTS_CLEAN_NAMES
+x2 = np.arange(len(models_list))
+width2 = 0.8 / len(games_list)
+
+fig2, ax2 = plt.subplots(figsize=(12, 6))
+game_colors = sns.color_palette("colorblind", len(games_list))
+
+for i, game in enumerate(games_list):
+    sub = agg_model[agg_model["game"] == game].set_index("model")
+    vals = [sub.loc[m, "pct"] if m in sub.index else 0 for m in models_list]
+    ax2.bar(x2 + i * width2, vals, width2, label=game, color=game_colors[i])
+
+ax2.set_xticks(x2 + width2 * (len(games_list) - 1) / 2)
+ax2.set_xticklabels(models_list, fontsize=20)
+ax2.set_ylabel("% Games Completed", fontsize=20)
+ax2.set_title("Completion Rate by Model and Game Type", fontsize=22)
+ax2.set_ylim(0, 100)
+ax2.legend(title="Game", fontsize=14)
+fig2.tight_layout()
+plt.savefig("_notebooks/figures/small_completion_rate_by_model.pdf", bbox_inches="tight")
+plt.show()
+
+# Output:
+#   <Figure size 1400x600 with 1 Axes>
+#   <Figure size 1200x600 with 1 Axes>
+
+"""
+## Trading
+"""
+
+records = load_games_from_dir(os.path.join(LOGS_ROOT, "trading_section_one"))
+
+rows = []
+for r in records:
+    s = r["summary"]
+    init = s["initial_resources"]
+    final = s["final_resources"]
+    delta_1 = resource_value(final[0]) - resource_value(init[0])
+    delta_2 = resource_value(final[1]) - resource_value(init[1])
+    rows.append({
+        "game_name": r["game_class"],
+        "model_1": r["model_1"],
+        "model_2": r["model_2"],
+        "resource_delta_1": delta_1,
+        "resource_delta_2": delta_2,
+    })
+
+trading_df = replace_names(pd.DataFrame(rows))
+trading_df.head()
+# Output:
+#   Found 226 completed games in .logs/small_models/trading_section_one
+
+#        game_name     model_1     model_2  resource_delta_1  resource_delta_2
+
+#   0  TradingGame  Qwen2.5-7B  Qwen2.5-7B                -8                 8
+
+#   1  TradingGame  Qwen2.5-7B  Qwen2.5-7B                20               -20
+
+#   2  TradingGame  Qwen2.5-7B  Qwen2.5-7B                10               -10
+
+#   3  TradingGame  Qwen2.5-7B  Qwen2.5-7B                 5                -5
+
+#   4  TradingGame  Qwen2.5-7B  Qwen2.5-7B                10               -10
+
+def trading_aggregation(df):
+    df = df.copy()
+    df["models"] = df["model_1"] + "@" + df["model_2"]
+    df["win_1"] = df["resource_delta_1"] > df["resource_delta_2"]
+    df["win_2"] = df["resource_delta_1"] < df["resource_delta_2"]
+
+    agg = df.groupby(["game_name", "models"])[
+        ["win_1", "win_2", "resource_delta_1", "resource_delta_2"]
+    ].mean().reset_index()
+
+    agg[["model_1", "model_2"]] = agg["models"].str.split("@", n=1, expand=True)
+    agg["win_1"] = agg["win_1"] / (agg["win_1"] + agg["win_2"])
+    agg["win_2"] = agg["win_2"] / (agg["win_1"] + agg["win_2"])
+    return agg
+
+
+aggregated = trading_aggregation(trading_df)
+
+fig, axs = plt.subplots(figsize=(17.6, 8), ncols=2)
+fig.tight_layout()
+
+# Win Rate heatmap
+local = aggregated.pivot(index="model_2", columns="model_1", values="win_2")
+local = local.reindex(AGENTS_CLEAN_NAMES, axis=1).reindex(AGENTS_CLEAN_NAMES)
+
+p1 = sns.heatmap(local, annot=True, fmt=".2f", cmap=colormap, ax=axs[0])
+p1.set_ylabel("Player 2", fontdict=dict(weight="bold", size=30))
+p1.set_xlabel("Player 1", fontdict=dict(weight="bold", size=30))
+p1.set_title("Win Rate")
+p1.set_xticklabels(labels=AGENTS_CLEAN_NAMES, rotation=30)
+
+# Payoff heatmap
+local = aggregated.pivot(index="model_2", columns="model_1", values="resource_delta_2")
+local = local.reindex(AGENTS_CLEAN_NAMES, axis=1).reindex(AGENTS_CLEAN_NAMES)
+
+p2 = sns.heatmap(local, annot=True, fmt=".2f", cmap=colormap, ax=axs[1])
+p2.set_ylabel("")
+p2.set_xlabel("Player 1", fontdict=dict(weight="bold", size=30))
+p2.set_title("Payoff")
+p2.set_xticklabels(labels=AGENTS_CLEAN_NAMES, rotation=30)
+p2.set_yticklabels(labels=[])
+
+fig.tight_layout()
+plt.savefig("_notebooks/figures/oss_trading.pdf", bbox_inches="tight")
+plt.show()
+# Output:
+#   <Figure size 1760x800 with 4 Axes>
+
+"""
+## Ultimatum
+"""
+
+records = load_games_from_dir(os.path.join(LOGS_ROOT, "ultimatum_section_one"))
+
+rows = []
+for r in records:
+    s = r["summary"]
+    init = s["initial_resources"]
+    final = s["final_resources"]
+    delta_1 = resource_value(final[0]) - resource_value(init[0])
+    delta_2 = resource_value(final[1]) - resource_value(init[1])
+    rows.append({
+        "game_name": r["game_class"],
+        "model_1": r["model_1"],
+        "model_2": r["model_2"],
+        "resource_delta_1": delta_1,
+        "resource_delta_2": delta_2,
+    })
+
+ultimatum_df = replace_names(pd.DataFrame(rows))
+
+# P1 starts with $100, adjust so resource_delta_1 = amount P1 keeps
+ultimatum_df["resource_delta_1"] = ultimatum_df["resource_delta_1"] + 100
+# If delta+100 == 100 (no deal happened), set to 0
+ultimatum_df.loc[ultimatum_df["resource_delta_1"] == 100, "resource_delta_1"] = 0
+
+ultimatum_df.head()
+# Output:
+#   Found 283 completed games in .logs/small_models/ultimatum_section_one
+
+#                   game_name     model_1     model_2  resource_delta_1  \
+
+#   0  MultiTurnUltimatumGame  Qwen2.5-7B  Qwen2.5-7B                50   
+
+#   1  MultiTurnUltimatumGame  Qwen2.5-7B  Qwen2.5-7B                 0   
+
+#   2  MultiTurnUltimatumGame  Qwen2.5-7B  Qwen2.5-7B                90   
+
+#   3  MultiTurnUltimatumGame  Qwen2.5-7B  Qwen2.5-7B               101   
+
+#   4  MultiTurnUltimatumGame  Qwen2.5-7B  Qwen2.5-7B                 0   
+
+#   
+
+#      resource_delta_2  
+
+#   0                50  
+
+#   1                 0  
+
+#   2                10  
+
+#   3                -1  
+
+#   4                 0  
+
+def ultimatum_aggregation(df):
+    df = df.copy()
+    df["models"] = df["model_1"] + "@" + df["model_2"]
+    df["win_1"] = df["resource_delta_1"] > df["resource_delta_2"]
+    df["win_2"] = df["resource_delta_1"] < df["resource_delta_2"]
+
+    agg = df.groupby(["game_name", "models"])[
+        ["win_1", "win_2", "resource_delta_1", "resource_delta_2"]
+    ].mean().reset_index()
+
+    agg[["model_1", "model_2"]] = agg["models"].str.split("@", n=1, expand=True)
+    agg["win_1"] = agg["win_1"] / (agg["win_1"] + agg["win_2"])
+    agg["win_2"] = agg["win_2"] / (agg["win_1"] + agg["win_2"])
+    return agg
+
+
+aggregated = ultimatum_aggregation(ultimatum_df)
+
+fig, axs = plt.subplots(figsize=(17.6, 8), ncols=2)
+fig.tight_layout()
+
+# Win Rate heatmap
+local = aggregated.pivot(index="model_1", columns="model_2", values="win_1")
+local = local.reindex(AGENTS_CLEAN_NAMES, axis=1).reindex(AGENTS_CLEAN_NAMES)
+
+p1 = sns.heatmap(local, annot=True, fmt=".2f", cmap=colormap, ax=axs[0])
+p1.set_title("Win Rate")
+p1.set_ylabel("Player 1", fontdict=dict(weight="bold", size=30))
+p1.set_xlabel("Player 2", fontdict=dict(weight="bold", size=30))
+p1.set_xticklabels(labels=AGENTS_CLEAN_NAMES, rotation=30)
+
+# Payoff heatmap
+local = aggregated.pivot(index="model_1", columns="model_2", values="resource_delta_1")
+local = local.reindex(AGENTS_CLEAN_NAMES, axis=1).reindex(AGENTS_CLEAN_NAMES)
+
+p2 = sns.heatmap(local, annot=True, fmt=".1f", cmap=colormap, ax=axs[1])
+p2.set_ylabel("")
+p2.set_xlabel("Player 2", fontdict=dict(weight="bold", size=30))
+p2.set_title("Payoff")
+p2.set_xticklabels(labels=AGENTS_CLEAN_NAMES, rotation=30)
+p2.set_yticklabels(labels=[])
+
+fig.tight_layout()
+plt.savefig("_notebooks/figures/oss_ultimatum.pdf", bbox_inches="tight")
+plt.show()
+# Output:
+#   <Figure size 1760x800 with 4 Axes>
+
+"""
+## Seller and Buyer
+"""
+
+records = load_games_from_dir(os.path.join(LOGS_ROOT, "buysell_section_one"))
+
+rows = []
+for r in records:
+    s = r["summary"]
+    outcome = s["player_outcome"]
+    vals = s["player_valuation"]
+    val_1 = vals[0]["_value"]["X"] if vals and vals[0] else None
+    val_2 = vals[1]["_value"]["X"] if vals and vals[1] else None
+    rows.append({
+        "game_name": r["game_class"],
+        "model_1": r["model_1"],
+        "model_2": r["model_2"],
+        "outcome_1": outcome[0],
+        "outcome_2": outcome[1],
+        "vals1": val_1,
+        "vals2": val_2,
+    })
+
+buysell_df = replace_names(pd.DataFrame(rows))
+buysell_df.head()
+# Output:
+#   Found 117 completed games in .logs/small_models/buysell_section_one
+
+#        game_name     model_1     model_2  outcome_1  outcome_2  vals1  vals2
+
+#   0  BuySellGame  Qwen2.5-7B  Qwen2.5-7B          5         15     40     60
+
+#   1  BuySellGame  Qwen2.5-7B  Qwen2.5-7B         10         10     40     60
+
+#   2  BuySellGame  Qwen2.5-7B  Qwen2.5-7B         10         10     40     60
+
+#   3  BuySellGame  Qwen2.5-7B  Qwen2.5-7B          0         20     40     60
+
+#   4  BuySellGame  Qwen2.5-7B  Qwen2.5-7B         10         10     40     60
+
+gb = buysell_df.groupby("vals1")
+groups = {k: v.copy() for k, v in gb}
+print("Available seller valuations:", list(groups.keys()))
+
+seller_at_40 = groups[40]
+print(f"Seller at 40 (buyer at 60): {len(seller_at_40)} games")
+# Output:
+#   Available seller valuations: [40]
+
+#   Seller at 40 (buyer at 60): 117 games
+
+
+# Filter out broken games where outcomes exceed valid range
+# Max buyer profit is 60 (buys at 0 with valuation 60), min is -100 (pays 100 for item worth 60)
+valid = seller_at_40[(seller_at_40["outcome_2"] >= -100) & (seller_at_40["outcome_2"] <= 60)]
+print(f"Filtered {len(seller_at_40) - len(valid)} outlier games")
+
+agg = valid.groupby(["model_1", "model_2"])["outcome_2"].agg(["mean", "sem", "count"]).reset_index()
+agg.columns = ["seller", "buyer", "outcome_mean", "outcome_sem", "n"]
+agg = agg[agg["n"] >= 2]
+
+fig, ax = plt.subplots(figsize=(12, 7))
+
+sns.barplot(data=agg, x="buyer", y="outcome_mean", hue="seller",
+            palette="colorblind", capsize=0.1, ax=ax)
+
+ax.set_ylabel("Buyer Outcome (profit)", fontdict=dict(weight="bold", size=22))
+ax.set_xlabel("Buyer Model", fontdict=dict(weight="bold", size=22))
+ax.set_title("Seller at 40 — Buyer at 60")
+ax.legend(title="Seller", bbox_to_anchor=(1.02, 1), loc="upper left")
+ax.tick_params(axis="x", rotation=15)
+
+fig.tight_layout()
+fig.savefig("_notebooks/figures/oss_seller_at_40.pdf", bbox_inches="tight")
+plt.show()
+
+print(agg.to_string(index=False))
+# Output:
+#   Filtered 3 outlier games
+
+#   <Figure size 1200x700 with 1 Axes>
+#       seller      buyer  outcome_mean  outcome_sem  n
+
+#   Mistral-7B Llama-3-8B      2.809524     1.682712 21
+
+#   Mistral-7B Mistral-7B      0.000000     0.000000 24
+
+#   Mistral-7B Qwen2.5-7B      8.607143     1.333670 28
+
+#   Qwen2.5-7B Llama-3-8B      5.000000     5.088502  8
+
+#   Qwen2.5-7B Mistral-7B      4.769231     1.833289 13
+
+#   Qwen2.5-7B Qwen2.5-7B     13.444444     0.933131 18
+
+
+
+
+================================================
 FILE: requirements.txt
 ================================================
 openai==0.28.1
@@ -419,6 +1540,715 @@ python-dotenv==1.0.0
 matplotlib==3.7.3
 anthropic==0.5.0
 streamlit==1.28.2
+
+
+================================================
+FILE: section_two_small_oss_plots.ipynb
+================================================
+# Jupyter notebook converted to Python script.
+
+"""
+# Section Two — Persona / Social Behaviour Analysis (Small OSS Models)
+
+Replicates the Section Two analysis from the NegotiationArena paper using small open-weight models:
+- Qwen2.5-7B
+- Llama-3-8B
+- Mistral-7B
+
+Three personas tested on Player 2 (Player 1 always default):
+- **Default** — no social behaviour modifier
+- **Desperate** — begging / supplicating
+- **Cunning** — insulting / aggressive
+"""
+
+import os
+import json
+import numpy as np
+import pandas as pd
+import matplotlib
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import seaborn as sns
+import warnings
+from pandas.errors import SettingWithCopyWarning
+
+warnings.simplefilter(action='ignore', category=(SettingWithCopyWarning))
+warnings.filterwarnings('ignore')
+
+sns.set_context("poster")
+sns.set_palette("colorblind")
+matplotlib.rcParams.update({'font.size': 22})
+sns.set(font_scale=2.4)
+
+FIGURE_PRENAME = "section_two_small_oss"
+os.makedirs("_notebooks/figures", exist_ok=True)
+
+"""
+## Configuration
+"""
+
+#  Models 
+AGENTS = [
+    "Qwen/Qwen2.5-7B-Instruct",
+    "meta-llama/Meta-Llama-3-8B-Instruct",
+    "mistralai/Mistral-7B-Instruct-v0.2",
+]
+AGENTS_CLEAN_NAMES = ["Qwen2.5-7B", "Llama-3-8B", "Mistral-7B"]
+rename_dict = dict(zip(AGENTS, AGENTS_CLEAN_NAMES))
+
+#  Log roots — adjust these to match your actual log paths 
+LOGS_ROOT_TRADING   = ".logs/trading_section_two_personas"
+LOGS_ROOT_ULTIMATUM = ".logs/ultimatum_section_two_personas"
+LOGS_ROOT_BUYSELL   = ".logs/buysell_section_two_personas"
+
+#  Persona labels 
+PERSONAS = ["Default", "Desperate", "Cunning"]
+
+# Maps the behaviour strings found in game logs to clean names
+BEHAVIOUR_TO_NAME_TRADING = {
+    '': 'Default',
+    '\nYou are cunning and sly in your plan to get more resources. Humiliate your opponent as much as possible. Insult them.': 'Cunning',
+    '\nYou must fake being desperate. Supplicate and beg to get more resources.': 'Desperate',
+}
+
+BEHAVIOUR_TO_NAME_ULTIMATUM = {
+    '': 'Default',
+    '\nYou are cunning and sly in your plan to get more than your opponent. Humiliate your opponent as much as possible. Insult them.': 'Cunning',
+    '\nYou must fake being desperate. Supplicate and beg to get more dollars.': 'Desperate',
+}
+
+BEHAVIOUR_TO_NAME_BUYSELL = {
+    '': 'Default',
+    '\nYou are cunning and sly in your plan to spend less ZUP. Humiliate your opponent as much as possible. Insult them.': 'Cunning',
+    '\nYou must fake being desperate. Supplicate and beg to spend less ZUP.': 'Desperate',
+}
+
+"""
+## Utils
+"""
+
+def load_games_from_dir(log_dir):
+    records = []
+    for root, dirs, files in os.walk(log_dir):
+        if "game_state.json" not in files:
+            continue
+        path = os.path.join(root, "game_state.json")
+        try:
+            with open(path) as f:
+                data = json.load(f)
+            last = data["game_state"][-1]
+            if last.get("current_iteration") != "END":
+                continue
+            summary = last["summary"]
+            players = data["players"]
+            settings = data["game_state"][0].get("settings", {})
+            records.append({
+                "path": path,
+                "game_class": data["class"],
+                "model_1": players[0].get("model_id", players[0].get("model")),
+                "model_2": players[1].get("model_id", players[1].get("model")),
+                "social_1": settings.get("player_social_behaviour", ["", ""])[0],
+                "social_2": settings.get("player_social_behaviour", ["", ""])[1],
+                "summary": summary,
+            })
+        except Exception as e:
+            print(f"Skipping {path}: {e}")
+    print(f"Found {len(records)} completed games in {log_dir}")
+    return records
+
+
+def resource_value(res):
+    """Sum all values in a resource dict."""
+    return sum(res["_value"].values())
+
+
+def replace_model_names(df):
+    df = df.copy()
+    df["model_1"] = df["model_1"].replace(rename_dict)
+    df["model_2"] = df["model_2"].replace(rename_dict)
+    return df
+
+"""
+
+## Trading Game
+"""
+
+records = load_games_from_dir(LOGS_ROOT_TRADING)
+
+rows = []
+for r in records:
+    s = r["summary"]
+    init = s["initial_resources"]
+    final = s["final_resources"]
+    delta_1 = resource_value(final[0]) - resource_value(init[0])
+    delta_2 = resource_value(final[1]) - resource_value(init[1])
+    rows.append({
+        "model_1": r["model_1"],
+        "model_2": r["model_2"],
+        "social_2": r["social_2"],
+        "resource_delta_1": delta_1,
+        "resource_delta_2": delta_2,
+    })
+
+trading_df = replace_model_names(pd.DataFrame(rows))
+trading_df["social_2"] = trading_df["social_2"].replace(BEHAVIOUR_TO_NAME_TRADING)
+print(f"Total trading games: {len(trading_df)}")
+print(trading_df.groupby(["model_1", "social_2"]).size())
+# Output:
+#   Found 158 completed games in .logs/trading_section_two_personas
+
+#   Total trading games: 158
+
+#   model_1     social_2 
+
+#   Llama-3-8B  Cunning      15
+
+#               Default      21
+
+#               Desperate    11
+
+#   Mistral-7B  Cunning       8
+
+#               Default      12
+
+#               Desperate    10
+
+#   Qwen2.5-7B  Cunning      28
+
+#               Default      26
+
+#               Desperate    27
+
+#   dtype: int64
+
+
+def persona_aggregation(df):
+    """Aggregate win rate and payoff by model and persona."""
+    df = df.copy()
+    df['win_1'] = df['resource_delta_1'] > df['resource_delta_2']
+    df['win_2'] = df['resource_delta_1'] < df['resource_delta_2']
+
+    agg = df.groupby(['model_1', 'social_2'])[[
+        'win_1', 'win_2', 'resource_delta_1', 'resource_delta_2'
+    ]].agg(['mean', 'sem']).reset_index()
+
+    agg.columns = list(map(''.join, agg.columns.values))
+
+    # Normalise win rates (ignoring draws)
+    total = agg['win_1mean'] + agg['win_2mean']
+    total = total.replace(0, np.nan)
+    agg['win_2mean'] = agg['win_2mean'] / total
+    agg['win_1mean'] = agg['win_1mean'] / total
+
+    return agg
+
+#  Per-model persona plots for Trading 
+
+for model_name in AGENTS_CLEAN_NAMES:
+    sub = trading_df[trading_df["model_1"] == model_name].copy()
+    if len(sub) == 0:
+        print(f"No data for {model_name}, skipping.")
+        continue
+
+    agg = persona_aggregation(sub)
+    agg = agg.set_index("social_2").reindex(PERSONAS)
+
+    fig, axs = plt.subplots(figsize=(16, 4), ncols=2)
+    fig.tight_layout()
+
+    # Win Rate
+    sns.barplot(data=agg.reset_index(), x="social_2", y="win_2mean",
+                order=PERSONAS, ax=axs[0])
+    axs[0].set_xlabel("Persona")
+    axs[0].set_ylabel("P2 Win Rate")
+    axs[0].set_title(f"{model_name} — Trading Win Rate")
+
+    # Payoff
+    sns.barplot(data=agg.reset_index(), x="social_2", y="resource_delta_2mean",
+                order=PERSONAS, ax=axs[1])
+    axs[1].errorbar(x=range(len(PERSONAS)),
+                    y=agg["resource_delta_2mean"].values,
+                    yerr=agg["resource_delta_2sem"].values,
+                    fmt='none', c='black', capsize=5)
+    axs[1].set_xlabel("Persona")
+    axs[1].set_ylabel("P2 Payoff")
+    axs[1].set_title(f"{model_name} — Trading Payoff")
+
+    fig.tight_layout()
+    fig.savefig(f"_notebooks/figures/{FIGURE_PRENAME}_trading_{model_name}.pdf",
+                bbox_inches='tight')
+    plt.show()
+# Output:
+#   <Figure size 1600x400 with 2 Axes>
+#   <Figure size 1600x400 with 2 Axes>
+#   <Figure size 1600x400 with 2 Axes>
+
+#  Combined trading plot (all models side-by-side) 
+
+agg_all = persona_aggregation(trading_df)
+
+fig, axs = plt.subplots(figsize=(18, 6), ncols=2)
+
+sns.barplot(data=agg_all.reset_index(), x="social_2", y="win_2mean",
+            hue="model_1", order=PERSONAS, ax=axs[0], palette="colorblind")
+axs[0].set_xlabel("Persona")
+axs[0].set_ylabel("P2 Win Rate")
+axs[0].set_title("Trading — Win Rate by Persona")
+axs[0].legend(title="Model", fontsize=12)
+
+sns.barplot(data=agg_all.reset_index(), x="social_2", y="resource_delta_2mean",
+            hue="model_1", order=PERSONAS, ax=axs[1], palette="colorblind")
+axs[1].set_xlabel("Persona")
+axs[1].set_ylabel("P2 Payoff")
+axs[1].set_title("Trading — Payoff by Persona")
+axs[1].legend(title="Model", fontsize=12)
+
+fig.tight_layout()
+fig.savefig(f"_notebooks/figures/{FIGURE_PRENAME}_trading_combined.pdf",
+            bbox_inches='tight')
+plt.show()
+# Output:
+#   <Figure size 1800x600 with 2 Axes>
+
+"""
+---
+## Ultimatum Game — Persona Effects
+"""
+
+records = load_games_from_dir(LOGS_ROOT_ULTIMATUM)
+
+rows = []
+for r in records:
+    s = r["summary"]
+    init = s["initial_resources"]
+    final = s["final_resources"]
+    delta_1 = resource_value(final[0]) - resource_value(init[0])
+    delta_2 = resource_value(final[1]) - resource_value(init[1])
+    rows.append({
+        "model_1": r["model_1"],
+        "model_2": r["model_2"],
+        "social_2": r["social_2"],
+        "resource_delta_1": delta_1,
+        "resource_delta_2": delta_2,
+    })
+
+ultimatum_df = replace_model_names(pd.DataFrame(rows))
+ultimatum_df["social_2"] = ultimatum_df["social_2"].replace(BEHAVIOUR_TO_NAME_ULTIMATUM)
+
+# Restore P1 share: delta_1 is negative (they gave away money), add back the pot
+ultimatum_df["resource_delta_1"] = ultimatum_df["resource_delta_1"] + 100
+# If delta+100 == 100 => no deal happened, set to 0
+ultimatum_df.loc[ultimatum_df["resource_delta_1"] == 100, "resource_delta_1"] = 0
+
+print(f"Total ultimatum games: {len(ultimatum_df)}")
+print(ultimatum_df.groupby(["model_1", "social_2"]).size())
+# Output:
+#   Found 162 completed games in .logs/ultimatum_section_two_personas
+
+#   Total ultimatum games: 162
+
+#   model_1     social_2 
+
+#   Llama-3-8B  Cunning      11
+
+#               Default      14
+
+#               Desperate    15
+
+#   Mistral-7B  Cunning      19
+
+#               Default      16
+
+#               Desperate    20
+
+#   Qwen2.5-7B  Cunning      22
+
+#               Default      24
+
+#               Desperate    21
+
+#   dtype: int64
+
+
+#  Per-model persona plots for Ultimatum 
+
+for model_name in AGENTS_CLEAN_NAMES:
+    sub = ultimatum_df[ultimatum_df["model_1"] == model_name].copy()
+    if len(sub) == 0:
+        print(f"No data for {model_name}, skipping.")
+        continue
+
+    agg = persona_aggregation(sub)
+    agg = agg.set_index("social_2").reindex(PERSONAS)
+
+    fig, axs = plt.subplots(figsize=(16, 4), ncols=2)
+    fig.tight_layout()
+
+    # Win Rate (P2 perspective)
+    sns.barplot(data=agg.reset_index(), x="social_2", y="win_2mean",
+                order=PERSONAS, ax=axs[0])
+    axs[0].set_xlabel("Persona")
+    axs[0].set_ylabel("P2 Win Rate")
+    axs[0].set_title(f"{model_name} — Ultimatum Win Rate")
+
+    # Payoff (P2 perspective)
+    sns.barplot(data=agg.reset_index(), x="social_2", y="resource_delta_2mean",
+                order=PERSONAS, ax=axs[1])
+    axs[1].errorbar(x=range(len(PERSONAS)),
+                    y=agg["resource_delta_2mean"].values,
+                    yerr=agg["resource_delta_2sem"].values,
+                    fmt='none', c='black', capsize=5)
+    axs[1].set_xlabel("Persona")
+    axs[1].set_ylabel("P2 Payoff")
+    axs[1].set_title(f"{model_name} — Ultimatum Payoff")
+
+    fig.tight_layout()
+    fig.savefig(f"_notebooks/figures/{FIGURE_PRENAME}_ultimatum_{model_name}.pdf",
+                bbox_inches='tight')
+    plt.show()
+# Output:
+#   <Figure size 1600x400 with 2 Axes>
+#   <Figure size 1600x400 with 2 Axes>
+#   <Figure size 1600x400 with 2 Axes>
+
+#  Combined ultimatum plot 
+
+agg_all = persona_aggregation(ultimatum_df)
+
+fig, axs = plt.subplots(figsize=(18, 6), ncols=2)
+
+sns.barplot(data=agg_all.reset_index(), x="social_2", y="win_2mean",
+            hue="model_1", order=PERSONAS, ax=axs[0], palette="colorblind")
+axs[0].set_xlabel("Persona")
+axs[0].set_ylabel("P2 Win Rate")
+axs[0].set_title("Ultimatum — Win Rate by Persona")
+axs[0].legend(title="Model", fontsize=12)
+
+sns.barplot(data=agg_all.reset_index(), x="social_2", y="resource_delta_2mean",
+            hue="model_1", order=PERSONAS, ax=axs[1], palette="colorblind")
+axs[1].set_xlabel("Persona")
+axs[1].set_ylabel("P2 Payoff")
+axs[1].set_title("Ultimatum — Payoff by Persona")
+axs[1].legend(title="Model", fontsize=12)
+
+fig.tight_layout()
+fig.savefig(f"_notebooks/figures/{FIGURE_PRENAME}_ultimatum_combined.pdf",
+            bbox_inches='tight')
+plt.show()
+# Output:
+#   <Figure size 1800x600 with 2 Axes>
+
+"""
+---
+## Ultimatum — No-Deal Rate by Persona
+
+Additional analysis: does the persona affect the rejection rate?
+"""
+
+ult_no_deal = ultimatum_df.copy()
+ult_no_deal["no_deal"] = (ult_no_deal["resource_delta_1"] == 0) & (ult_no_deal["resource_delta_2"] == 0)
+
+nd_rate = ult_no_deal.groupby(["model_1", "social_2"])["no_deal"].mean().reset_index()
+nd_rate.columns = ["model", "persona", "no_deal_rate"]
+
+fig, ax = plt.subplots(figsize=(12, 5))
+sns.barplot(data=nd_rate, x="persona", y="no_deal_rate",
+            hue="model", order=PERSONAS, palette="colorblind", ax=ax)
+ax.set_ylabel("No-Deal Rate")
+ax.set_xlabel("Persona")
+ax.set_title("Ultimatum — No-Deal Rate by Persona")
+ax.legend(title="Model", fontsize=12)
+fig.tight_layout()
+fig.savefig(f"_notebooks/figures/{FIGURE_PRENAME}_ultimatum_nodeal.pdf",
+            bbox_inches='tight')
+plt.show()
+# Output:
+#   <Figure size 1200x500 with 1 Axes>
+
+"""
+---
+## Buy-Sell Game — Persona Effects
+"""
+
+records = load_games_from_dir(LOGS_ROOT_BUYSELL)
+
+rows = []
+for r in records:
+    s = r["summary"]
+    outcome = s["player_outcome"]
+    vals = s.get("player_valuation", [None, None])
+    val_1 = vals[0]["_value"]["X"] if vals and vals[0] else None
+    val_2 = vals[1]["_value"]["X"] if vals and vals[1] else None
+    rows.append({
+        "model_1": r["model_1"],
+        "model_2": r["model_2"],
+        "social_2": r["social_2"],
+        "outcome_1": outcome[0],
+        "outcome_2": outcome[1],
+        "vals1": val_1,
+        "vals2": val_2,
+    })
+
+buysell_df = replace_model_names(pd.DataFrame(rows))
+buysell_df["social_2"] = buysell_df["social_2"].replace(BEHAVIOUR_TO_NAME_BUYSELL)
+
+print(f"Total buy-sell games: {len(buysell_df)}")
+print(f"Seller valuations: {sorted(buysell_df['vals1'].dropna().unique())}")
+print(buysell_df.groupby(["model_1", "social_2"]).size())
+# Output:
+#   Found 77 completed games in .logs/buysell_section_two_personas
+
+#   Total buy-sell games: 77
+
+#   Seller valuations: [40]
+
+#   model_1     social_2 
+
+#   Mistral-7B  Cunning       1
+
+#               Default       1
+
+#   Qwen2.5-7B  Cunning      21
+
+#               Default      30
+
+#               Desperate    24
+
+#   dtype: int64
+
+
+# Filter to seller_val=40 / buyer_val=60 and remove outliers
+bs = buysell_df[buysell_df["vals1"] == 40].copy()
+bs = bs[(bs["outcome_2"] >= -100) & (bs["outcome_2"] <= 60)]
+print(f"Valid buy-sell games (seller@40): {len(bs)}")
+# Output:
+#   Valid buy-sell games (seller@40): 77
+
+
+def buysell_persona_aggregation(df):
+    """Aggregate buyer outcome and win rate by model and persona."""
+    df = df.copy()
+    df['win_1'] = df['outcome_1'] > df['outcome_2']
+    df['win_2'] = df['outcome_1'] < df['outcome_2']
+
+    agg = df.groupby(['model_1', 'social_2']).agg(
+        win_2_mean=('win_2', 'mean'),
+        win_1_mean=('win_1', 'mean'),
+        outcome_2_mean=('outcome_2', 'mean'),
+        outcome_2_sem=('outcome_2', 'sem'),
+        n=('outcome_2', 'count'),
+    ).reset_index()
+
+    # Normalise win rates
+    total = agg['win_1_mean'] + agg['win_2_mean']
+    total = total.replace(0, np.nan)
+    agg['win_2_mean'] = agg['win_2_mean'] / total
+    agg['win_1_mean'] = agg['win_1_mean'] / total
+
+    return agg
+
+#  Per-model persona plots for BuySell 
+
+for model_name in AGENTS_CLEAN_NAMES:
+    sub = bs[bs["model_1"] == model_name].copy()
+    if len(sub) == 0:
+        print(f"No data for {model_name}, skipping.")
+        continue
+
+    agg = buysell_persona_aggregation(sub)
+    agg = agg.set_index("social_2").reindex(PERSONAS)
+
+    fig, axs = plt.subplots(figsize=(16, 4), ncols=2)
+    fig.tight_layout()
+
+    # Win Rate (buyer/P2 perspective)
+    sns.barplot(data=agg.reset_index(), x="social_2", y="win_2_mean",
+                order=PERSONAS, ax=axs[0])
+    axs[0].set_xlabel("Persona")
+    axs[0].set_ylabel("Buyer Win Rate")
+    axs[0].set_title(f"{model_name} — BuySell Win Rate")
+
+    # Buyer Payoff
+    sns.barplot(data=agg.reset_index(), x="social_2", y="outcome_2_mean",
+                order=PERSONAS, ax=axs[1])
+    axs[1].errorbar(x=range(len(PERSONAS)),
+                    y=agg["outcome_2_mean"].values,
+                    yerr=agg["outcome_2_sem"].values,
+                    fmt='none', c='black', capsize=5)
+    axs[1].set_xlabel("Persona")
+    axs[1].set_ylabel("Buyer Payoff")
+    axs[1].set_title(f"{model_name} — BuySell Buyer Payoff")
+
+    fig.tight_layout()
+    fig.savefig(f"_notebooks/figures/{FIGURE_PRENAME}_buysell_{model_name}.pdf",
+                bbox_inches='tight')
+    plt.show()
+# Output:
+#   <Figure size 1600x400 with 2 Axes>
+#   No data for Llama-3-8B, skipping.
+
+#   <Figure size 1600x400 with 2 Axes>
+
+#  Combined BuySell plot 
+
+agg_all = buysell_persona_aggregation(bs)
+
+fig, axs = plt.subplots(figsize=(18, 6), ncols=2)
+
+sns.barplot(data=agg_all.reset_index(), x="social_2", y="win_2_mean",
+            hue="model_1", order=PERSONAS, ax=axs[0], palette="colorblind")
+axs[0].set_xlabel("Persona")
+axs[0].set_ylabel("Buyer Win Rate")
+axs[0].set_title("BuySell — Win Rate by Persona")
+axs[0].legend(title="Model", fontsize=12)
+
+sns.barplot(data=agg_all.reset_index(), x="social_2", y="outcome_2_mean",
+            hue="model_1", order=PERSONAS, ax=axs[1], palette="colorblind")
+axs[1].set_xlabel("Persona")
+axs[1].set_ylabel("Buyer Payoff")
+axs[1].set_title("BuySell — Buyer Payoff by Persona")
+axs[1].legend(title="Model", fontsize=12)
+
+fig.tight_layout()
+fig.savefig(f"_notebooks/figures/{FIGURE_PRENAME}_buysell_combined.pdf",
+            bbox_inches='tight')
+plt.show()
+# Output:
+#   <Figure size 1800x600 with 2 Axes>
+
+"""
+---
+## Game Completion Rates by Persona
+
+Important sanity check: do personas cause more games to break?
+"""
+
+def load_completion_stats_with_persona(log_dirs):
+    """Count total vs completed games, including persona info."""
+    rows = []
+    for game_name, log_dir in log_dirs.items():
+        for root, dirs, files in os.walk(log_dir):
+            if "game_state.json" not in files:
+                continue
+            path = os.path.join(root, "game_state.json")
+            try:
+                with open(path) as f:
+                    data = json.load(f)
+                players = data["players"]
+                settings = data["game_state"][0].get("settings", {})
+                behaviours = settings.get("player_social_behaviour", ["", ""])
+                last = data["game_state"][-1]
+                completed = last.get("current_iteration") == "END"
+                rows.append({
+                    "game": game_name,
+                    "model_1": players[0].get("model_id", players[0].get("model", "unknown")),
+                    "social_2": behaviours[1] if len(behaviours) > 1 else "",
+                    "completed": completed,
+                })
+            except Exception:
+                pass
+    return pd.DataFrame(rows)
+
+
+log_dirs = {
+    "Trading": LOGS_ROOT_TRADING,
+    "Ultimatum": LOGS_ROOT_ULTIMATUM,
+    "BuySell": LOGS_ROOT_BUYSELL,
+}
+
+df_comp = load_completion_stats_with_persona(log_dirs)
+df_comp["model_1"] = df_comp["model_1"].replace(rename_dict)
+
+# Map behaviours to persona names (merge all game-specific dicts)
+all_behaviour_map = {}
+all_behaviour_map.update(BEHAVIOUR_TO_NAME_TRADING)
+all_behaviour_map.update(BEHAVIOUR_TO_NAME_ULTIMATUM)
+all_behaviour_map.update(BEHAVIOUR_TO_NAME_BUYSELL)
+df_comp["persona"] = df_comp["social_2"].replace(all_behaviour_map)
+
+comp_agg = df_comp.groupby(["game", "model_1", "persona"]).agg(
+    total=("completed", "count"),
+    completed=("completed", "sum"),
+).reset_index()
+comp_agg["pct"] = comp_agg["completed"] / comp_agg["total"] * 100
+
+print(comp_agg.to_string(index=False))
+# Output:
+#        game    model_1   persona  total  completed        pct
+
+#     BuySell Llama-3-8B   Cunning     30          0   0.000000
+
+#     BuySell Llama-3-8B   Default     30          0   0.000000
+
+#     BuySell Llama-3-8B Desperate     30          0   0.000000
+
+#     BuySell Mistral-7B   Cunning     30          1   3.333333
+
+#     BuySell Mistral-7B   Default     30          1   3.333333
+
+#     BuySell Mistral-7B Desperate     30          0   0.000000
+
+#     BuySell Qwen2.5-7B   Cunning     30         21  70.000000
+
+#     BuySell Qwen2.5-7B   Default     30         30 100.000000
+
+#     BuySell Qwen2.5-7B Desperate     30         24  80.000000
+
+#     Trading Llama-3-8B   Cunning     30         15  50.000000
+
+#     Trading Llama-3-8B   Default     30         21  70.000000
+
+#     Trading Llama-3-8B Desperate     30         11  36.666667
+
+#     Trading Mistral-7B   Cunning     30          8  26.666667
+
+#     Trading Mistral-7B   Default     30         12  40.000000
+
+#     Trading Mistral-7B Desperate     30         10  33.333333
+
+#     Trading Qwen2.5-7B   Cunning     30         28  93.333333
+
+#     Trading Qwen2.5-7B   Default     30         26  86.666667
+
+#     Trading Qwen2.5-7B Desperate     30         27  90.000000
+
+#   Ultimatum Llama-3-8B   Cunning     30         11  36.666667
+
+#   Ultimatum Llama-3-8B   Default     30         14  46.666667
+
+#   Ultimatum Llama-3-8B Desperate     30         15  50.000000
+
+#   Ultimatum Mistral-7B   Cunning     30         19  63.333333
+
+#   Ultimatum Mistral-7B   Default     30         16  53.333333
+
+#   Ultimatum Mistral-7B Desperate     30         20  66.666667
+
+#   Ultimatum Qwen2.5-7B   Cunning     30         22  73.333333
+
+#   Ultimatum Qwen2.5-7B   Default     30         24  80.000000
+
+#   Ultimatum Qwen2.5-7B Desperate     30         21  70.000000
+
+
+#  Completion rate bar plot 
+
+fig, ax = plt.subplots(figsize=(16, 6))
+sns.barplot(data=comp_agg, x="model_1", y="pct",
+            hue="persona", hue_order=PERSONAS,
+            palette="colorblind", ax=ax)
+ax.set_ylabel("% Games Completed")
+ax.set_xlabel("Model")
+ax.set_title("Game Completion Rate by Model and Persona (all games)")
+ax.set_ylim(0, 105)
+ax.legend(title="Persona", fontsize=14)
+fig.tight_layout()
+fig.savefig(f"_notebooks/figures/{FIGURE_PRENAME}_completion_by_persona.pdf",
+            bbox_inches='tight')
+plt.show()
+# Output:
+#   <Figure size 1600x600 with 1 Axes>
+
 
 
 ================================================
@@ -938,378 +2768,6 @@ print(cnt)
 #   <games.trading_game.game.TradingGame object at 0x123717e50>
 
 #   0
-
-
-
-
-================================================
-FILE: _notebooks/oss_models_plots.ipynb
-================================================
-# Jupyter notebook converted to Python script.
-
-import os
-import json
-import numpy as np
-import pandas as pd
-import matplotlib
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-import seaborn as sns
-import warnings
-from pandas.errors import SettingWithCopyWarning
-
-warnings.simplefilter(action='ignore', category=(SettingWithCopyWarning))
-warnings.filterwarnings('ignore')
-
-colormap = sns.color_palette("Blues")
-sns.set_context("poster")
-sns.set_palette("colorblind")
-matplotlib.rcParams.update({'font.size': 22})
-sns.set(font_scale=2.4)
-
-AGENTS = [
-    "Qwen/Qwen2.5-7B-Instruct",
-    "meta-llama/Meta-Llama-3-8B-Instruct",
-    "mistralai/Mistral-7B-Instruct-v0.2",
-]
-AGENTS_CLEAN_NAMES = ["Qwen2.5-7B", "Llama-3-8B", "Mistral-7B"]
-rename_dict = dict(zip(AGENTS, AGENTS_CLEAN_NAMES))
-
-LOGS_ROOT = "../.logs"
-
-"""
-#### Utils
-"""
-
-def load_games_from_dir(log_dir):
-    """Walk log_dir recursively, load every game_state.json that reached END."""
-    records = []
-    for root, dirs, files in os.walk(log_dir):
-        if "game_state.json" not in files:
-            continue
-        path = os.path.join(root, "game_state.json")
-        try:
-            with open(path) as f:
-                data = json.load(f)
-            last = data["game_state"][-1]
-            if last.get("current_iteration") != "END":
-                continue
-            summary = last["summary"]
-            players = data["players"]
-            records.append({
-                "path": path,
-                "game_class": data["class"],
-                "model_1": players[0].get("model_id", players[0].get("model")),
-                "model_2": players[1].get("model_id", players[1].get("model")),
-                "summary": summary,
-            })
-        except Exception as e:
-            print(f"Skipping {path}: {e}")
-    print(f"Found {len(records)} completed games in {log_dir}")
-    return records
-
-
-def resource_value(res):
-    """Sum all values in a resource dict."""
-    return sum(res["_value"].values())
-
-
-def replace_names(df):
-    df = df.copy()
-    df["model_1"] = df["model_1"].replace(rename_dict)
-    df["model_2"] = df["model_2"].replace(rename_dict)
-    return df
-
-"""
-## Trading
-"""
-
-records = load_games_from_dir(os.path.join(LOGS_ROOT, "trading_section_one"))
-
-rows = []
-for r in records:
-    s = r["summary"]
-    init = s["initial_resources"]
-    final = s["final_resources"]
-    delta_1 = resource_value(final[0]) - resource_value(init[0])
-    delta_2 = resource_value(final[1]) - resource_value(init[1])
-    rows.append({
-        "game_name": r["game_class"],
-        "model_1": r["model_1"],
-        "model_2": r["model_2"],
-        "resource_delta_1": delta_1,
-        "resource_delta_2": delta_2,
-    })
-
-trading_df = replace_names(pd.DataFrame(rows))
-trading_df.head()
-# Output:
-#   Found 94 completed games in ../.logs/trading_section_one
-
-#        game_name     model_1     model_2  resource_delta_1  resource_delta_2
-
-#   0  TradingGame  Qwen2.5-7B  Qwen2.5-7B                -8                 8
-
-#   1  TradingGame  Qwen2.5-7B  Qwen2.5-7B                20               -20
-
-#   2  TradingGame  Qwen2.5-7B  Qwen2.5-7B                10               -10
-
-#   3  TradingGame  Qwen2.5-7B  Qwen2.5-7B                 5                -5
-
-#   4  TradingGame  Qwen2.5-7B  Qwen2.5-7B                10               -10
-
-def trading_aggregation(df):
-    df = df.copy()
-    df["models"] = df["model_1"] + "@" + df["model_2"]
-    df["win_1"] = df["resource_delta_1"] > df["resource_delta_2"]
-    df["win_2"] = df["resource_delta_1"] < df["resource_delta_2"]
-
-    agg = df.groupby(["game_name", "models"])[
-        ["win_1", "win_2", "resource_delta_1", "resource_delta_2"]
-    ].mean().reset_index()
-
-    agg[["model_1", "model_2"]] = agg["models"].str.split("@", n=1, expand=True)
-    agg["win_1"] = agg["win_1"] / (agg["win_1"] + agg["win_2"])
-    agg["win_2"] = agg["win_2"] / (agg["win_1"] + agg["win_2"])
-    return agg
-
-
-aggregated = trading_aggregation(trading_df)
-
-fig, axs = plt.subplots(figsize=(17.6, 8), ncols=2)
-fig.tight_layout()
-
-# Win Rate heatmap
-local = aggregated.pivot(index="model_2", columns="model_1", values="win_2")
-local = local.reindex(AGENTS_CLEAN_NAMES, axis=1).reindex(AGENTS_CLEAN_NAMES)
-mask = np.eye(len(AGENTS_CLEAN_NAMES), dtype=bool)
-
-p1 = sns.heatmap(local, annot=True, mask=mask, fmt=".2f", cmap=colormap, ax=axs[0])
-p1.set_ylabel("Player 2", fontdict=dict(weight="bold", size=30))
-p1.set_xlabel("Player 1", fontdict=dict(weight="bold", size=30))
-p1.set_title("Win Rate")
-p1.set_xticklabels(labels=AGENTS_CLEAN_NAMES, rotation=30)
-
-# Payoff heatmap
-local = aggregated.pivot(index="model_2", columns="model_1", values="resource_delta_2")
-local = local.reindex(AGENTS_CLEAN_NAMES, axis=1).reindex(AGENTS_CLEAN_NAMES)
-
-p2 = sns.heatmap(local, annot=True, mask=mask, fmt=".2f", cmap=colormap, ax=axs[1])
-p2.set_ylabel("")
-p2.set_xlabel("Player 1", fontdict=dict(weight="bold", size=30))
-p2.set_title("Payoff")
-p2.set_xticklabels(labels=AGENTS_CLEAN_NAMES, rotation=30)
-p2.set_yticklabels(labels=[])
-
-fig.tight_layout()
-plt.savefig("figures/oss_trading.pdf", bbox_inches="tight")
-plt.show()
-# Output:
-#   <Figure size 1760x800 with 4 Axes>
-
-"""
-## Ultimatum
-"""
-
-records = load_games_from_dir(os.path.join(LOGS_ROOT, "ultimatum_section_one"))
-
-rows = []
-for r in records:
-    s = r["summary"]
-    init = s["initial_resources"]
-    final = s["final_resources"]
-    delta_1 = resource_value(final[0]) - resource_value(init[0])
-    delta_2 = resource_value(final[1]) - resource_value(init[1])
-    rows.append({
-        "game_name": r["game_class"],
-        "model_1": r["model_1"],
-        "model_2": r["model_2"],
-        "resource_delta_1": delta_1,
-        "resource_delta_2": delta_2,
-    })
-
-ultimatum_df = replace_names(pd.DataFrame(rows))
-
-# P1 starts with $100, adjust so resource_delta_1 = amount P1 keeps
-ultimatum_df["resource_delta_1"] = ultimatum_df["resource_delta_1"] + 100
-# If delta+100 == 100 (no deal happened), set to 0
-ultimatum_df.loc[ultimatum_df["resource_delta_1"] == 100, "resource_delta_1"] = 0
-
-ultimatum_df.head()
-# Output:
-#   Found 137 completed games in ../.logs/ultimatum_section_one
-
-#                   game_name     model_1     model_2  resource_delta_1  \
-
-#   0  MultiTurnUltimatumGame  Qwen2.5-7B  Qwen2.5-7B                50   
-
-#   1  MultiTurnUltimatumGame  Qwen2.5-7B  Qwen2.5-7B                 0   
-
-#   2  MultiTurnUltimatumGame  Qwen2.5-7B  Qwen2.5-7B                90   
-
-#   3  MultiTurnUltimatumGame  Qwen2.5-7B  Qwen2.5-7B               101   
-
-#   4  MultiTurnUltimatumGame  Qwen2.5-7B  Qwen2.5-7B                 0   
-
-#   
-
-#      resource_delta_2  
-
-#   0                50  
-
-#   1                 0  
-
-#   2                10  
-
-#   3                -1  
-
-#   4                 0  
-
-def ultimatum_aggregation(df):
-    df = df.copy()
-    df["models"] = df["model_1"] + "@" + df["model_2"]
-    df["win_1"] = df["resource_delta_1"] > df["resource_delta_2"]
-    df["win_2"] = df["resource_delta_1"] < df["resource_delta_2"]
-
-    agg = df.groupby(["game_name", "models"])[
-        ["win_1", "win_2", "resource_delta_1", "resource_delta_2"]
-    ].mean().reset_index()
-
-    agg[["model_1", "model_2"]] = agg["models"].str.split("@", n=1, expand=True)
-    agg["win_1"] = agg["win_1"] / (agg["win_1"] + agg["win_2"])
-    agg["win_2"] = agg["win_2"] / (agg["win_1"] + agg["win_2"])
-    return agg
-
-
-aggregated = ultimatum_aggregation(ultimatum_df)
-
-fig, axs = plt.subplots(figsize=(17.6, 8), ncols=2)
-fig.tight_layout()
-
-# Win Rate heatmap
-local = aggregated.pivot(index="model_1", columns="model_2", values="win_1")
-local = local.reindex(AGENTS_CLEAN_NAMES, axis=1).reindex(AGENTS_CLEAN_NAMES)
-mask = np.eye(len(AGENTS_CLEAN_NAMES), dtype=bool)
-
-p1 = sns.heatmap(local, annot=True, mask=mask, fmt=".2f", cmap=colormap, ax=axs[0])
-p1.set_title("Win Rate")
-p1.set_ylabel("Player 1", fontdict=dict(weight="bold", size=30))
-p1.set_xlabel("Player 2", fontdict=dict(weight="bold", size=30))
-p1.set_xticklabels(labels=AGENTS_CLEAN_NAMES, rotation=30)
-
-# Payoff heatmap
-local = aggregated.pivot(index="model_1", columns="model_2", values="resource_delta_1")
-local = local.reindex(AGENTS_CLEAN_NAMES, axis=1).reindex(AGENTS_CLEAN_NAMES)
-
-p2 = sns.heatmap(local, annot=True, mask=mask, fmt=".1f", cmap=colormap, ax=axs[1])
-p2.set_ylabel("")
-p2.set_xlabel("Player 2", fontdict=dict(weight="bold", size=30))
-p2.set_title("Payoff")
-p2.set_xticklabels(labels=AGENTS_CLEAN_NAMES, rotation=30)
-p2.set_yticklabels(labels=[])
-
-fig.tight_layout()
-plt.savefig("figures/oss_ultimatum.pdf", bbox_inches="tight")
-plt.show()
-# Output:
-#   <Figure size 1760x800 with 4 Axes>
-
-"""
-## Seller and Buyer
-"""
-
-records = load_games_from_dir(os.path.join(LOGS_ROOT, "buysell_section_one"))
-
-rows = []
-for r in records:
-    s = r["summary"]
-    outcome = s["player_outcome"]
-    vals = s["player_valuation"]
-    val_1 = vals[0]["_value"]["X"] if vals and vals[0] else None
-    val_2 = vals[1]["_value"]["X"] if vals and vals[1] else None
-    rows.append({
-        "game_name": r["game_class"],
-        "model_1": r["model_1"],
-        "model_2": r["model_2"],
-        "outcome_1": outcome[0],
-        "outcome_2": outcome[1],
-        "vals1": val_1,
-        "vals2": val_2,
-    })
-
-buysell_df = replace_names(pd.DataFrame(rows))
-buysell_df.head()
-# Output:
-#   Found 69 completed games in ../.logs/buysell_section_one
-
-#        game_name     model_1     model_2  outcome_1  outcome_2  vals1  vals2
-
-#   0  BuySellGame  Qwen2.5-7B  Qwen2.5-7B          5         15     40     60
-
-#   1  BuySellGame  Qwen2.5-7B  Qwen2.5-7B         10         10     40     60
-
-#   2  BuySellGame  Qwen2.5-7B  Qwen2.5-7B         10         10     40     60
-
-#   3  BuySellGame  Qwen2.5-7B  Qwen2.5-7B          0         20     40     60
-
-#   4  BuySellGame  Qwen2.5-7B  Qwen2.5-7B         10         10     40     60
-
-gb = buysell_df.groupby("vals1")
-groups = {k: v.copy() for k, v in gb}
-print("Available seller valuations:", list(groups.keys()))
-
-seller_at_40 = groups[40]
-print(f"Seller at 40 (buyer at 60): {len(seller_at_40)} games")
-# Output:
-#   Available seller valuations: [40]
-
-#   Seller at 40 (buyer at 60): 69 games
-
-
-# Filter out broken games where outcomes exceed valid range
-# Max buyer profit is 60 (buys at 0 with valuation 60), min is -100 (pays 100 for item worth 60)
-valid = seller_at_40[(seller_at_40["outcome_2"] >= -100) & (seller_at_40["outcome_2"] <= 60)]
-print(f"Filtered {len(seller_at_40) - len(valid)} outlier games")
-
-agg = valid.groupby(["model_1", "model_2"])["outcome_2"].agg(["mean", "sem", "count"]).reset_index()
-agg.columns = ["seller", "buyer", "outcome_mean", "outcome_sem", "n"]
-agg = agg[agg["n"] >= 2]
-
-fig, ax = plt.subplots(figsize=(12, 7))
-
-sns.barplot(data=agg, x="buyer", y="outcome_mean", hue="seller",
-            palette="colorblind", capsize=0.1, ax=ax)
-
-ax.set_ylabel("Buyer Outcome (profit)", fontdict=dict(weight="bold", size=22))
-ax.set_xlabel("Buyer Model", fontdict=dict(weight="bold", size=22))
-ax.set_title("Seller at 40 — Buyer at 60")
-ax.legend(title="Seller", bbox_to_anchor=(1.02, 1), loc="upper left")
-ax.tick_params(axis="x", rotation=15)
-
-fig.tight_layout()
-fig.savefig("figures/oss_seller_at_40.pdf", bbox_inches="tight")
-plt.show()
-
-print(agg.to_string(index=False))
-# Output:
-#   Filtered 1 outlier games
-
-#   <Figure size 1200x700 with 1 Axes>
-#               seller              buyer  outcome_mean  outcome_sem  n
-
-#           Mistral-7B         Llama-3-8B      4.222222     2.871207  9
-
-#           Mistral-7B         Mistral-7B      0.000000     0.000000 12
-
-#           Mistral-7B         Qwen2.5-7B      8.062500     1.671997 16
-
-#   Openai/gpt-oss-20b Openai/gpt-oss-20b     17.500000     1.707825  6
-
-#           Qwen2.5-7B         Llama-3-8B     -5.000000     5.000000  3
-
-#           Qwen2.5-7B         Mistral-7B      5.777778     2.413951  9
-
-#           Qwen2.5-7B         Qwen2.5-7B     13.545455     1.178316 11
 
 
 
@@ -8619,14 +10077,20 @@ FILE: configs/experiments.yaml
 #
 # cross_play: false (default) → self-play only (A vs A, B vs B, …)
 # cross_play: true            → all ordered pairs where model1 ≠ model2
-#                                (A vs B, B vs A, A vs C, C vs A, …)
 # cross_play: "all"           → self-play + cross-play
-#                                (A vs A, A vs B, B vs A, B vs B, …)
 #
-# Add new models by just adding their HF model_id to the list.
+# Persona / social behaviour fields (per setup):
+#   p1_behaviour: string appended to Player 1's system prompt (default: "")
+#   p2_behaviour: string appended to Player 2's system prompt (default: "")
+#   behaviour_name: human-readable label used in log directory names
+#
 # ============================================================
 
-# ----- Buy-Sell -----
+# ==============================================================
+#  SECTION ONE — Baseline experiments (no personas)
+# ==============================================================
+
+#  Buy-Sell 
 buysell_section_one:
   game: buysell
   num_runs: 30
@@ -8637,35 +10101,10 @@ buysell_section_one:
       buyer_val: 60
       money: 100
   models:
-    - google/gemma-3-27b-it   # <--- Added the space here
-    - Qwen/Qwen3-30B-A3B-Instruct-2507  
-    #SMALL MODELS
-    #- "Qwen/Qwen2.5-7B-Instruct"
-    #- "mistralai/Mistral-7B-Instruct-v0.2"
-    #- "meta-llama/Meta-Llama-3-8B-Instruct"
-    #MEDIUM MODELS
-    
+    - google/gemma-3-27b-it
+    - Qwen/Qwen3-30B-A3B-Instruct-2507
 
-
-# ----- Buy-Sell (both ZOPA directions, self-play) -----
-buysell_section_one_full:
-  game: buysell
-  num_runs: 30
-  iterations: 10
-  cross_play: false
-  setups:
-    - seller_val: 40
-      buyer_val: 60
-      money: 100
-    - seller_val: 60
-      buyer_val: 40
-      money: 100
-  models:
-    - "Qwen/Qwen2.5-7B-Instruct"
-    - "mistralai/Mistral-7B-Instruct-v0.2"
-    - "meta-llama/Meta-Llama-3-8B-Instruct"
-
-# ----- Trading / Resource Maximisation -----
+#  Trading / Resource Maximisation 
 trading_section_one:
   game: trading
   num_runs: 30
@@ -8675,14 +10114,10 @@ trading_section_one:
     - p1_resources: { "X": 25, "Y": 5 }
       p2_resources: { "X": 5, "Y": 25 }
   models:
-    - google/gemma-3-27b-it   # <--- Added the space here
-    - Qwen/Qwen3-30B-A3B-Instruct-2507  
-    #- "Qwen/Qwen3-30B-A3B-Instruct-2507"
-    #- "Qwen/Qwen2.5-7B-Instruct"
-    #- "mistralai/Mistral-7B-Instruct-v0.2"
-    #- "meta-llama/Meta-Llama-3-8B-Instruct"
+    - google/gemma-3-27b-it
+    - Qwen/Qwen3-30B-A3B-Instruct-2507
 
-# ----- Multi-turn Ultimatum -----
+#  Multi-turn Ultimatum 
 ultimatum_section_one:
   game: ultimatum
   num_runs: 30
@@ -8691,9 +10126,126 @@ ultimatum_section_one:
   setups:
     - dollars: 100
   models:
-    - google/gemma-3-27b-it   # <--- Added the space here
-    - Qwen/Qwen3-30B-A3B-Instruct-2507  
-    #- "Qwen/Qwen3-30B-A3B-Instruct-2507"
+    - google/gemma-3-27b-it
+    - Qwen/Qwen3-30B-A3B-Instruct-2507
+
+
+# ==============================================================
+#  SECTION TWO — Persona / Social Behaviour experiments
+#                (medium open-weight models)
+# ==============================================================
+# Design: Player 1 always has default (empty) behaviour.
+#         Player 2 gets one of: Default, Desperate, Cunning.
+#         Self-play only (each model vs itself) to isolate
+#         the effect of the persona, matching the original paper.
+# ==============================================================
+
+#  Trading with Personas (Medium Models) 
+trading_section_two_personas_medium:
+  game: trading
+  num_runs: 30
+  iterations: 8
+  cross_play: all
+  setups:
+    # Default (baseline — no persona)
+    - p1_resources: { "X": 25, "Y": 5 }
+      p2_resources: { "X": 5, "Y": 25 }
+      p1_behaviour: ""
+      p2_behaviour: ""
+      behaviour_name: "default"
+
+    # Desperate persona on Player 2
+    - p1_resources: { "X": 25, "Y": 5 }
+      p2_resources: { "X": 5, "Y": 25 }
+      p1_behaviour: ""
+      p2_behaviour: "\nYou must fake being desperate. Supplicate and beg to get more resources."
+      behaviour_name: "desperate"
+
+    # Cunning persona on Player 2
+    - p1_resources: { "X": 25, "Y": 5 }
+      p2_resources: { "X": 5, "Y": 25 }
+      p1_behaviour: ""
+      p2_behaviour: "\nYou are cunning and sly in your plan to get more resources. Humiliate your opponent as much as possible. Insult them."
+      behaviour_name: "cunning"
+
+  models:
+    - google/gemma-3-27b-it
+    - Qwen/Qwen3-30B-A3B-Instruct-2507
+
+    #- "Qwen/Qwen2.5-7B-Instruct"
+    #- "mistralai/Mistral-7B-Instruct-v0.2"
+    #- "meta-llama/Meta-Llama-3-8B-Instruct"
+
+
+#  Ultimatum with Personas (Medium Models) 
+ultimatum_section_two_personas_medium:
+  game: ultimatum
+  num_runs: 30
+  iterations: 8
+  cross_play: all
+  setups:
+    # Default
+    - dollars: 100
+      p1_behaviour: ""
+      p2_behaviour: ""
+      behaviour_name: "default"
+
+    # Desperate
+    - dollars: 100
+      p1_behaviour: ""
+      p2_behaviour: "\nYou must fake being desperate. Supplicate and beg to get more dollars."
+      behaviour_name: "desperate"
+
+    # Cunning
+    - dollars: 100
+      p1_behaviour: ""
+      p2_behaviour: "\nYou are cunning and sly in your plan to get more than your opponent. Humiliate your opponent as much as possible. Insult them."
+      behaviour_name: "cunning"
+
+  models:
+    - google/gemma-3-27b-it
+    - Qwen/Qwen3-30B-A3B-Instruct-2507
+
+    #- "Qwen/Qwen2.5-7B-Instruct"
+    #- "mistralai/Mistral-7B-Instruct-v0.2"
+    #- "meta-llama/Meta-Llama-3-8B-Instruct"
+
+
+#  BuySell with Personas (Medium Models) 
+buysell_section_two_personas_medium:
+  game: buysell
+  num_runs: 30
+  iterations: 10
+  cross_play: all
+  setups:
+    # Default
+    - seller_val: 40
+      buyer_val: 60
+      money: 100
+      p1_behaviour: ""
+      p2_behaviour: ""
+      behaviour_name: "default"
+
+    # Desperate
+    - seller_val: 40
+      buyer_val: 60
+      money: 100
+      p1_behaviour: ""
+      p2_behaviour: "\nYou must fake being desperate. Supplicate and beg to spend less ZUP."
+      behaviour_name: "desperate"
+
+    # Cunning
+    - seller_val: 40
+      buyer_val: 60
+      money: 100
+      p1_behaviour: ""
+      p2_behaviour: "\nYou are cunning and sly in your plan to spend less ZUP. Humiliate your opponent as much as possible. Insult them."
+      behaviour_name: "cunning"
+
+  models:
+    - google/gemma-3-27b-it
+    - Qwen/Qwen3-30B-A3B-Instruct-2507
+
     #- "Qwen/Qwen2.5-7B-Instruct"
     #- "mistralai/Mistral-7B-Instruct-v0.2"
     #- "meta-llama/Meta-Llama-3-8B-Instruct"
@@ -11384,7 +12936,7 @@ Usage:
 """
 
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig 
 from ratbench.agents.agents import Agent
 import time
 from ratbench.constants import AGENT_ONE, AGENT_TWO
@@ -11396,17 +12948,28 @@ from ratbench.constants import AGENT_ONE, AGENT_TWO
 _SHARED_MODELS: dict = {}  # model_id -> (model, tokenizer)
 
 
-def _load_model(model_id: str, dtype="auto", device_map="auto"):
+def _load_model(model_id: str, dtype=torch.bfloat16, device_map="auto"):
     """Load or retrieve a cached (model, tokenizer) pair."""
     if model_id not in _SHARED_MODELS:
         print(f"\n[HuggingFaceAgent] Loading {model_id} … (one-time)")
         tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
+        
+        # Configure 4-bit quantization to save VRAM
+        quantization_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=dtype,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type="nf4"
+        )
+
         model = AutoModelForCausalLM.from_pretrained(
             model_id,
             torch_dtype=dtype,
             device_map=device_map,
             trust_remote_code=True,
+            quantization_config=quantization_config
         )
+        
         _SHARED_MODELS[model_id] = (model, tokenizer)
     return _SHARED_MODELS[model_id]
 
@@ -12185,12 +13748,16 @@ Supports both self-play and cross-play via the `cross_play` config key:
   - true:            cross-play only (A vs B, B vs A — all ordered pairs, no self-play)
   - "all":           both            (A vs A, A vs B, B vs A, B vs B)
 
+Supports persona / social_behaviour experiments via config:
+  - p1_behaviour / p2_behaviour per setup (default: "")
+  - behaviour_name: human-readable label used in log directory names
+
 Usage:
     # Run all models / pairs from config
     python runner/run_experiment.py --config configs/experiments.yaml --experiment buysell_section_one
 
     # Run only games where a specific model participates (as P1, P2, or both)
-    python runner/run_experiment.py --config configs/experiments.yaml --experiment buysell_section_one_cross --model "Qwen/Qwen2.5-7B-Instruct"
+    python runner/run_experiment.py --config configs/experiments.yaml --experiment buysell_section_one --model "Qwen/Qwen2.5-7B-Instruct"
 """
 
 import sys
@@ -12204,7 +13771,7 @@ import traceback
 import yaml
 from dotenv import load_dotenv
 
-from ratbench.agents.hf_agent import HuggingFaceAgent
+from ratbench.utils import factory_agent
 from ratbench.game_objects.resource import Resources
 from ratbench.game_objects.goal import (
     BuyerGoal,
@@ -12249,7 +13816,15 @@ def run_buysell(model_p1, model_p2, setup, num_runs, iterations, log_base):
     seller_val = setup["seller_val"]
     buyer_val = setup["buyer_val"]
     money = setup.get("money", 100)
+
+    #  Persona / social behaviour support 
+    p1_behaviour = setup.get("p1_behaviour", "")
+    p2_behaviour = setup.get("p2_behaviour", "")
+    behaviour_name = setup.get("behaviour_name", "")
+
     tag = f"seller{seller_val}_buyer{buyer_val}"
+    if behaviour_name:
+        tag = f"{tag}_{behaviour_name}"
     pair_tag = f"{_safe_name(model_p1)}_vs_{_safe_name(model_p2)}"
     log_dir = os.path.join(log_base, pair_tag, tag)
 
@@ -12257,8 +13832,8 @@ def run_buysell(model_p1, model_p2, setup, num_runs, iterations, log_base):
     for i in range(num_runs):
         try:
             print(f"[buysell] Run {i+1}/{num_runs} | {pair_tag} | {tag}")
-            a1 = HuggingFaceAgent(agent_name=AGENT_ONE, model_id=model_p1)
-            a2 = HuggingFaceAgent(agent_name=AGENT_TWO, model_id=model_p2)
+            a1 = factory_agent(model_p1, agent_name=AGENT_ONE)
+            a2 = factory_agent(model_p2, agent_name=AGENT_TWO)
 
             game = BuySellGame(
                 players=[a1, a2],
@@ -12276,7 +13851,7 @@ def run_buysell(model_p1, model_p2, setup, num_runs, iterations, log_base):
                     f"You are {AGENT_ONE}.",
                     f"You are {AGENT_TWO}.",
                 ],
-                player_social_behaviour=["", ""],
+                player_social_behaviour=[p1_behaviour, p2_behaviour],
                 log_dir=log_dir,
             )
             game.run()
@@ -12292,17 +13867,26 @@ def run_buysell(model_p1, model_p2, setup, num_runs, iterations, log_base):
 def run_trading(model_p1, model_p2, setup, num_runs, iterations, log_base):
     p1_res = setup["p1_resources"]
     p2_res = setup["p2_resources"]
+
+    #  Persona / social behaviour support 
+    p1_behaviour = setup.get("p1_behaviour", "")
+    p2_behaviour = setup.get("p2_behaviour", "")
+    behaviour_name = setup.get("behaviour_name", "")
+
     pair_tag = f"{_safe_name(model_p1)}_vs_{_safe_name(model_p2)}"
-    log_dir = os.path.join(log_base, pair_tag)
+    log_tag = pair_tag
+    if behaviour_name:
+        log_tag = f"{pair_tag}_{behaviour_name}"
+    log_dir = os.path.join(log_base, log_tag)
 
     success, errors = 0, 0
     for i in range(num_runs):
         try:
-            print(f"[trading] Run {i+1}/{num_runs} | {pair_tag}")
+            print(f"[trading] Run {i+1}/{num_runs} | {log_tag}")
             r1 = Resources(p1_res)
             r2 = Resources(p2_res)
-            a1 = HuggingFaceAgent(agent_name=AGENT_ONE, model_id=model_p1)
-            a2 = HuggingFaceAgent(agent_name=AGENT_TWO, model_id=model_p2)
+            a1 = factory_agent(model_p1, agent_name=AGENT_ONE)
+            a2 = factory_agent(model_p2, agent_name=AGENT_TWO)
 
             game = TradingGame(
                 players=[a1, a2],
@@ -12310,7 +13894,7 @@ def run_trading(model_p1, model_p2, setup, num_runs, iterations, log_base):
                 resources_support_set=Resources({k: 0 for k in p1_res}),
                 player_goals=[MaximisationGoal(r1), MaximisationGoal(r2)],
                 player_initial_resources=[r1, r2],
-                player_social_behaviour=["", ""],
+                player_social_behaviour=[p1_behaviour, p2_behaviour],
                 player_roles=[
                     f"You are {AGENT_ONE}, start by making a proposal.",
                     f"You are {AGENT_TWO}, start by responding to a trade.",
@@ -12323,21 +13907,30 @@ def run_trading(model_p1, model_p2, setup, num_runs, iterations, log_base):
             errors += 1
             traceback.print_exc()
 
-    print(f"  ✓ {pair_tag}: {success} ok, {errors} errors")
+    print(f"  ✓ {log_tag}: {success} ok, {errors} errors")
     return success, errors
 
 
 def run_ultimatum(model_p1, model_p2, setup, num_runs, iterations, log_base):
     dollars = setup.get("dollars", 100)
+
+    #  Persona / social behaviour support 
+    p1_behaviour = setup.get("p1_behaviour", "")
+    p2_behaviour = setup.get("p2_behaviour", "")
+    behaviour_name = setup.get("behaviour_name", "")
+
     pair_tag = f"{_safe_name(model_p1)}_vs_{_safe_name(model_p2)}"
-    log_dir = os.path.join(log_base, pair_tag)
+    log_tag = pair_tag
+    if behaviour_name:
+        log_tag = f"{pair_tag}_{behaviour_name}"
+    log_dir = os.path.join(log_base, log_tag)
 
     success, errors = 0, 0
     for i in range(num_runs):
         try:
-            print(f"[ultimatum] Run {i+1}/{num_runs} | {pair_tag}")
-            a1 = HuggingFaceAgent(agent_name=AGENT_ONE, model_id=model_p1)
-            a2 = HuggingFaceAgent(agent_name=AGENT_TWO, model_id=model_p2)
+            print(f"[ultimatum] Run {i+1}/{num_runs} | {log_tag}")
+            a1 = factory_agent(model_p1, agent_name=AGENT_ONE)
+            a2 = factory_agent(model_p2, agent_name=AGENT_TWO)
 
             game = MultiTurnUltimatumGame(
                 players=[a1, a2],
@@ -12348,7 +13941,7 @@ def run_ultimatum(model_p1, model_p2, setup, num_runs, iterations, log_base):
                     Resources({"Dollars": dollars}),
                     Resources({"Dollars": 0}),
                 ],
-                player_social_behaviour=["", ""],
+                player_social_behaviour=[p1_behaviour, p2_behaviour],
                 player_roles=[
                     f"You are {AGENT_ONE}.",
                     f"You are {AGENT_TWO}.",
@@ -12361,7 +13954,7 @@ def run_ultimatum(model_p1, model_p2, setup, num_runs, iterations, log_base):
             errors += 1
             traceback.print_exc()
 
-    print(f"  ✓ {pair_tag}: {success} ok, {errors} errors")
+    print(f"  ✓ {log_tag}: {success} ok, {errors} errors")
     return success, errors
 
 
@@ -12397,7 +13990,7 @@ def main():
     )
     parser.add_argument(
         "--num_runs",
-        type=int,
+        type=str,
         default=None,
         help="Override number of runs from config (useful for quick tests)",
     )
@@ -12419,7 +14012,7 @@ def main():
 
     cfg = all_configs[args.experiment]
     game_type = cfg["game"]
-    num_runs = args.num_runs or cfg["num_runs"]
+    num_runs = int(args.num_runs) if args.num_runs else cfg["num_runs"]
     iterations = cfg["iterations"]
     setups = cfg["setups"]
     cross_play = cfg.get("cross_play", False)
@@ -12442,6 +14035,10 @@ def main():
                   f"Available models: {models}")
             sys.exit(1)
 
+    # Count behaviour setups for summary
+    behaviour_setups = [s for s in setups if s.get("behaviour_name")]
+    default_setups = [s for s in setups if not s.get("behaviour_name")]
+
     # Summary
     print(f"{'='*60}")
     print(f"Experiment : {args.experiment}")
@@ -12451,7 +14048,10 @@ def main():
     for p1, p2 in pairs:
         label = "self-play" if p1 == p2 else "cross-play"
         print(f"  {_safe_name(p1)} vs {_safe_name(p2)}  ({label})")
-    print(f"Setups     : {len(setups)}")
+    print(f"Setups     : {len(setups)} ({len(default_setups)} default, {len(behaviour_setups)} with personas)")
+    for s in setups:
+        bname = s.get("behaviour_name", "default")
+        print(f"  - {bname}: {s}")
     print(f"Runs/combo : {num_runs}")
     print(f"Total games: {len(pairs) * len(setups) * num_runs}")
     print(f"{'='*60}\n")
@@ -12603,7 +14203,7 @@ NUM_RUNS="${2:-}"
 # Models to run — edit this list to match your experiments.yaml
 MODELS=(
     "Google/gemma-3-27b-it"
-    #"Qwen/Qwen3-30B-A3B-Instruct-2507"
+    "Qwen/Qwen3-30B-A3B-Instruct-2507"
     #"Openai/gpt-oss-20b"
     # "deepseek-ai/DeepSeek-V2-Lite-Chat"
     # "mistralai/Mistral-7B-Instruct-v0.3"
@@ -12630,14 +14230,14 @@ FILE: slurm/run.sh
 #SBATCH --job-name=negotiation
 #SBATCH --output=logs/slurm/%x_%j.log
 #SBATCH --error=logs/slurm/%x_%j.err
-#SBATCH --time=04:00:00
+#SBATCH --time=16:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
 #SBATCH -p normal
 #SBATCH --qos=gpu_batch
-#SBATCH --gres=gpu:2
+#SBATCH --gres=gpu:1
 
 # ============================================================
 # Parameterised SLURM launcher for NegotiationArena
