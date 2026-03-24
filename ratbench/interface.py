@@ -87,8 +87,8 @@ class ExchangeGameInterface(GameInterface):
             except (IndexError, ValueError) as exc:
                 raise ValueError(
                     f"Could not parse resources in '{player_str}'. "
-                    f"Each resource must be 'NAME: INTEGER' separated by commas, "
-                    f"with no trailing comma before the '|'. "
+                    f"Each resource must be 'NAME: INTEGER' (e.g. 'X: 1'). "
+                    f"Do NOT put a comma before the '|' separator. "
                     f"Expected format: 'Player RED Gives X: 1 | Player BLUE Gives ZUP: 50'. "
                     f"Got: '{s}'"
                 ) from exc
