@@ -32,7 +32,7 @@ class AlternatingGame(Game):
 
     """
 
-    def __init__(self, iterations, **kwargs):
+    def __init__(self, iterations, max_retries=0, **kwargs):
         super().__init__(**kwargs)
 
         # default start with player 0
@@ -41,6 +41,8 @@ class AlternatingGame(Game):
         self.game_state = []
         self.iterations = iterations
         self.current_iteration = 1
+        self.max_retries = max_retries
+        self.total_parse_retries = 0
 
     @abstractmethod
     def game_over(self):
@@ -62,6 +64,7 @@ class AlternatingGame(Game):
         self,
         players,
         response,
+        parse_retries=0,
     ):
         try:
             print("MODEL RESPONSE:", response)
@@ -78,6 +81,7 @@ class AlternatingGame(Game):
             player_private_info_dict=agent_message.secret,
             player_complete_answer=response,
             player_state=[player.get_state() for player in players],
+            parse_retries=parse_retries,
         )
 
         self.game_state.append(datum)
@@ -182,7 +186,27 @@ class AlternatingGame(Game):
             # print(response)
 
             # update ratbench state based on players and player response
-            self.write_game_state(self.players, response)
+            # with optional retry loop for parse error self-correction
+            retries = 0
+            while True:
+                try:
+                    self.write_game_state(self.players, response, parse_retries=retries)
+                    break
+                except Exception as e:
+                    if retries >= self.max_retries:
+                        raise
+                    retries += 1
+                    self.total_parse_retries += 1
+                    print(f"[RETRY {retries}/{self.max_retries}] Parse failed: {e}")
+                    error_msg = (
+                        f"Your previous response could not be parsed.\n\n"
+                        f"Your response was:\n{response}\n\n"
+                        f"Error: {e}\n\n"
+                        f"Please try again, making sure to follow the exact "
+                        f"response format specified in the rules."
+                    )
+                    self.players[self.turn].update_conversation_tracking("user", error_msg)
+                    response = self.players[self.turn].think()
 
             # for debug
             self.view_state(

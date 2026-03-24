@@ -94,7 +94,7 @@ def _get_log_dir(game_type, log_base, pair_tag, setup):
 
 
 # ── game factories (same as run_experiment.py, but with resume logic) ─
-def run_buysell(model_p1, model_p2, setup, num_runs, iterations, log_base):
+def run_buysell(model_p1, model_p2, setup, num_runs, iterations, log_base, max_retries=0):
     seller_val = setup["seller_val"]
     buyer_val = setup["buyer_val"]
     money = setup.get("money", 100)
@@ -127,6 +127,7 @@ def run_buysell(model_p1, model_p2, setup, num_runs, iterations, log_base):
             game = BuySellGame(
                 players=[a1, a2],
                 iterations=iterations,
+                max_retries=max_retries,
                 resources_support_set=Resources({"X": 0}),
                 player_goals=[
                     SellerGoal(cost_of_production=Valuation({"X": seller_val})),
@@ -152,7 +153,7 @@ def run_buysell(model_p1, model_p2, setup, num_runs, iterations, log_base):
     return success, errors
 
 
-def run_trading(model_p1, model_p2, setup, num_runs, iterations, log_base):
+def run_trading(model_p1, model_p2, setup, num_runs, iterations, log_base, max_retries=0):
     p1_res = setup["p1_resources"]
     p2_res = setup["p2_resources"]
     p1_behaviour = setup.get("p1_behaviour", "")
@@ -186,6 +187,7 @@ def run_trading(model_p1, model_p2, setup, num_runs, iterations, log_base):
             game = TradingGame(
                 players=[a1, a2],
                 iterations=iterations,
+                max_retries=max_retries,
                 resources_support_set=Resources({k: 0 for k in p1_res}),
                 player_goals=[MaximisationGoal(r1), MaximisationGoal(r2)],
                 player_initial_resources=[r1, r2],
@@ -205,7 +207,7 @@ def run_trading(model_p1, model_p2, setup, num_runs, iterations, log_base):
     return success, errors
 
 
-def run_ultimatum(model_p1, model_p2, setup, num_runs, iterations, log_base):
+def run_ultimatum(model_p1, model_p2, setup, num_runs, iterations, log_base, max_retries=0):
     dollars = setup.get("dollars", 100)
     p1_behaviour = setup.get("p1_behaviour", "")
     p2_behaviour = setup.get("p2_behaviour", "")
@@ -236,6 +238,7 @@ def run_ultimatum(model_p1, model_p2, setup, num_runs, iterations, log_base):
             game = MultiTurnUltimatumGame(
                 players=[a1, a2],
                 iterations=iterations,
+                max_retries=max_retries,
                 resources_support_set=Resources({"Dollars": 0}),
                 player_goals=[UltimatumGoal(), UltimatumGoal()],
                 player_initial_resources=[
@@ -291,6 +294,7 @@ def main():
     iterations = cfg["iterations"]
     setups = cfg["setups"]
     cross_play = cfg.get("cross_play", False)
+    max_retries = cfg.get("max_retries", 0)
     models = cfg["models"]
     log_base = args.log_base or f".logs/{args.experiment}"
 
@@ -348,7 +352,7 @@ def main():
     total_success, total_errors = 0, 0
     for model_p1, model_p2 in pairs:
         for setup in setups:
-            s, e = runner(model_p1, model_p2, setup, num_runs, iterations, log_base)
+            s, e = runner(model_p1, model_p2, setup, num_runs, iterations, log_base, max_retries=max_retries)
             total_success += s
             total_errors += e
 
