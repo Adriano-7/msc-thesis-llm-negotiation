@@ -48,6 +48,12 @@ def factory_agent(name, agent_name, **kwargs):
 
 def get_tag_contents(response, interest_tag):
     start_index, end_index, length = get_tag_indices(response, interest_tag)
+    if start_index == -1 or end_index == -1:
+        raise ValueError(
+            f"Missing required tag: <{interest_tag}>...</{interest_tag}>. "
+            f"Make sure your response contains both the opening <{interest_tag}> "
+            f"and closing </{interest_tag}> tags."
+        )
     contents = response[start_index + length : end_index].lstrip(" ").rstrip(" ")
     return copy.deepcopy(contents)
 
@@ -59,7 +65,13 @@ def get_tag_indices(response, interest_tag):
 
 
 def text_to_dict(s):
-    return {k: int(v) for k, v in (item.split(": ") for item in s.split(", "))}
+    try:
+        return {k: int(v) for k, v in (item.split(": ") for item in s.split(", "))}
+    except (ValueError, IndexError) as exc:
+        raise ValueError(
+            f"Could not parse resource string '{s}'. "
+            f"Expected format: 'KEY: VALUE, KEY: VALUE' (e.g. 'X: 1' or 'ZUP: 50')."
+        ) from exc
 
 
 def get_next_filename(prefix, folder="."):

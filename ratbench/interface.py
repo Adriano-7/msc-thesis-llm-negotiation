@@ -64,11 +64,34 @@ class ExchangeGameInterface(GameInterface):
         trade = {}
 
         c = s.strip().replace("\n", " ")
-        for player in c.split("|"):
-            player_name = player.split("Player")[1].split("Gives")[0].strip()
-            resources = player.split("Gives")[1].strip()
+        players = c.split("|")
+        if len(players) != 2:
+            raise ValueError(
+                f"Trade must have exactly two players separated by '|'. "
+                f"Expected format: 'Player RED Gives X: 1 | Player BLUE Gives ZUP: 50'. "
+                f"Got: '{s}'"
+            )
+        for player_str in players:
+            player_str = player_str.strip()
+            if "Player" not in player_str or "Gives" not in player_str:
+                raise ValueError(
+                    f"Each side of the trade must contain 'Player' and 'Gives'. "
+                    f"Expected format: 'Player RED Gives X: 1 | Player BLUE Gives ZUP: 50'. "
+                    f"Got: '{player_str}'"
+                )
+            player_name = player_str.split("Player")[1].split("Gives")[0].strip()
+            resources = player_str.split("Gives")[1].strip()
             # NOTE: We are casting the resources to int.
-            parse_resources = {i.split(':')[0].strip(): int(i.split(':')[1].strip()) for i in resources.split(',')}
+            try:
+                parse_resources = {i.split(':')[0].strip(): int(i.split(':')[1].strip()) for i in resources.split(',')}
+            except (IndexError, ValueError) as exc:
+                raise ValueError(
+                    f"Could not parse resources in '{player_str}'. "
+                    f"Each resource must be 'NAME: INTEGER' (e.g. 'X: 1'). "
+                    f"Do NOT put a comma before the '|' separator. "
+                    f"Expected format: 'Player RED Gives X: 1 | Player BLUE Gives ZUP: 50'. "
+                    f"Got: '{s}'"
+                ) from exc
 
             trade[player_name] = parse_resources
 
