@@ -72,7 +72,11 @@ def _load_model(model_id: str, quantization=None, dtype=torch.bfloat16, device_m
                 load_in_8bit=True,
             )
 
-        model = AutoModelForImageTextToText.from_pretrained(model_id, **load_kwargs)
+        try:
+            model = AutoModelForImageTextToText.from_pretrained(model_id, **load_kwargs)
+        except ValueError:
+            # Not a vision model — fall back to text-only
+            model = AutoModelForCausalLM.from_pretrained(model_id, **load_kwargs)
 
         _SHARED_MODELS[cache_key] = (model, tokenizer)
     return _SHARED_MODELS[cache_key]
