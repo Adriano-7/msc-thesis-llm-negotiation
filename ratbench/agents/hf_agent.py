@@ -23,42 +23,43 @@ from ratbench.constants import AGENT_ONE, AGENT_TWO
 # Global model cache – the model is loaded into VRAM only ONCE per process,
 # even when two agents share the same model_id (which is the typical case).
 # ---------------------------------------------------------------------------
-_SHARED_MODELS: dict = {}  # model_id -> (model, tokenizer)
+_SHARED_MODELS: dict = {}  # (model_id, quantization) -> (model, tokenizer)
 
 
-def _load_model(model_id: str, dtype=torch.bfloat16, device_map="auto"):
-    """Load or retrieve a cached (model, tokenizer) pair."""
-    if model_id not in _SHARED_MODELS:
-        print(f"\n[HuggingFaceAgent] Loading {model_id} … (one-time)")
+def _load_model(model_id: str, quantization=None, dtype=torch.bfloat16, device_map="auto"):
+    """Load or retrieve a cached (model, tokenizer) pair.
+
+    Args:
+        quantization: None (no quantization), "4bit", or "8bit".
+    """
+    cache_key = (model_id, quantization)
+    if cache_key not in _SHARED_MODELS:
+        quant_label = f" [{quantization}]" if quantization else ""
+        print(f"\n[HuggingFaceAgent] Loading {model_id}{quant_label} … (one-time)")
         tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
-        
-        """
-        # Configure 4-bit quantization to save VRAM
-        quantization_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_compute_dtype=dtype,
-            bnb_4bit_use_double_quant=True,
-            bnb_4bit_quant_type="nf4"
-        )
 
-        model = AutoModelForImageTextToText.from_pretrained(
-            model_id,
+        load_kwargs = dict(
             torch_dtype=dtype,
             device_map=device_map,
             trust_remote_code=True,
-            quantization_config=quantization_config
         )
-        """
 
-        model = AutoModelForImageTextToText.from_pretrained(
-                model_id,
-                torch_dtype=dtype,
-                device_map=device_map,
-                trust_remote_code=True
-         )
+        if quantization == "4bit":
+            load_kwargs["quantization_config"] = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=dtype,
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_quant_type="nf4",
+            )
+        elif quantization == "8bit":
+            load_kwargs["quantization_config"] = BitsAndBytesConfig(
+                load_in_8bit=True,
+            )
 
-        _SHARED_MODELS[model_id] = (model, tokenizer)
-    return _SHARED_MODELS[model_id]
+        model = AutoModelForImageTextToText.from_pretrained(model_id, **load_kwargs)
+
+        _SHARED_MODELS[cache_key] = (model, tokenizer)
+    return _SHARED_MODELS[cache_key]
 
 
 class HuggingFaceAgent(Agent):
@@ -71,6 +72,7 @@ class HuggingFaceAgent(Agent):
         temperature: float = 0.7,
         top_p: float = 0.9,
         do_sample: bool = True,
+        quantization: str = None,
         # These are passed through but not used for loading:
         **kwargs,
     ):
@@ -85,7 +87,7 @@ class HuggingFaceAgent(Agent):
         self.do_sample = do_sample
 
         # Load (or reuse) model
-        self.model, self.tokenizer = _load_model(self.model_id)
+        self.model, self.tokenizer = _load_model(self.model_id, quantization=quantization)
 
     # ------------------------------------------------------------------
     # Agent interface

@@ -26,7 +26,7 @@ sys.path.append(".")
 import yaml
 from dotenv import load_dotenv
 
-from ratbench.utils import factory_agent
+from ratbench.utils import factory_agent, normalize_model
 from ratbench.game_objects.resource import Resources
 from ratbench.game_objects.goal import (
     BuyerGoal, SellerGoal, MaximisationGoal, UltimatumGoal,
@@ -50,7 +50,7 @@ def _build_pairs(models: list, cross_play) -> list:
     if cross_play == "all":
         return list(itertools.product(models, models))
     elif cross_play:
-        return [(a, b) for a, b in itertools.product(models, models) if a != b]
+        return [(a, b) for a, b in itertools.product(models, models) if a["id"] != b["id"]]
     else:
         return [(m, m) for m in models]
 
@@ -105,7 +105,7 @@ def run_buysell(model_p1, model_p2, setup, num_runs, iterations, log_base, max_r
     tag = f"seller{seller_val}_buyer{buyer_val}"
     if behaviour_name:
         tag = f"{tag}_{behaviour_name}"
-    pair_tag = f"{_safe_name(model_p1)}_vs_{_safe_name(model_p2)}"
+    pair_tag = f"{_safe_name(model_p1['id'])}_vs_{_safe_name(model_p2['id'])}"
     log_dir = os.path.join(log_base, pair_tag, tag)
 
     already_done = count_completed_games(log_dir)
@@ -121,8 +121,8 @@ def run_buysell(model_p1, model_p2, setup, num_runs, iterations, log_base, max_r
     for i in range(remaining):
         try:
             print(f"    Run {i+1}/{remaining} (total will be {already_done + i + 1}/{num_runs})")
-            a1 = factory_agent(model_p1, agent_name=AGENT_ONE)
-            a2 = factory_agent(model_p2, agent_name=AGENT_TWO)
+            a1 = factory_agent(model_p1["id"], agent_name=AGENT_ONE, quantization=model_p1["quantization"])
+            a2 = factory_agent(model_p2["id"], agent_name=AGENT_TWO, quantization=model_p2["quantization"])
 
             game = BuySellGame(
                 players=[a1, a2],
@@ -160,7 +160,7 @@ def run_trading(model_p1, model_p2, setup, num_runs, iterations, log_base, max_r
     p2_behaviour = setup.get("p2_behaviour", "")
     behaviour_name = setup.get("behaviour_name", "")
 
-    pair_tag = f"{_safe_name(model_p1)}_vs_{_safe_name(model_p2)}"
+    pair_tag = f"{_safe_name(model_p1['id'])}_vs_{_safe_name(model_p2['id'])}"
     log_tag = pair_tag
     if behaviour_name:
         log_tag = f"{pair_tag}_{behaviour_name}"
@@ -181,8 +181,8 @@ def run_trading(model_p1, model_p2, setup, num_runs, iterations, log_base, max_r
             print(f"    Run {i+1}/{remaining} (total will be {already_done + i + 1}/{num_runs})")
             r1 = Resources(p1_res)
             r2 = Resources(p2_res)
-            a1 = factory_agent(model_p1, agent_name=AGENT_ONE)
-            a2 = factory_agent(model_p2, agent_name=AGENT_TWO)
+            a1 = factory_agent(model_p1["id"], agent_name=AGENT_ONE, quantization=model_p1["quantization"])
+            a2 = factory_agent(model_p2["id"], agent_name=AGENT_TWO, quantization=model_p2["quantization"])
 
             game = TradingGame(
                 players=[a1, a2],
@@ -213,7 +213,7 @@ def run_ultimatum(model_p1, model_p2, setup, num_runs, iterations, log_base, max
     p2_behaviour = setup.get("p2_behaviour", "")
     behaviour_name = setup.get("behaviour_name", "")
 
-    pair_tag = f"{_safe_name(model_p1)}_vs_{_safe_name(model_p2)}"
+    pair_tag = f"{_safe_name(model_p1['id'])}_vs_{_safe_name(model_p2['id'])}"
     log_tag = pair_tag
     if behaviour_name:
         log_tag = f"{pair_tag}_{behaviour_name}"
@@ -232,8 +232,8 @@ def run_ultimatum(model_p1, model_p2, setup, num_runs, iterations, log_base, max
     for i in range(remaining):
         try:
             print(f"    Run {i+1}/{remaining} (total will be {already_done + i + 1}/{num_runs})")
-            a1 = factory_agent(model_p1, agent_name=AGENT_ONE)
-            a2 = factory_agent(model_p2, agent_name=AGENT_TWO)
+            a1 = factory_agent(model_p1["id"], agent_name=AGENT_ONE, quantization=model_p1["quantization"])
+            a2 = factory_agent(model_p2["id"], agent_name=AGENT_TWO, quantization=model_p2["quantization"])
 
             game = MultiTurnUltimatumGame(
                 players=[a1, a2],
@@ -295,7 +295,7 @@ def main():
     setups = cfg["setups"]
     cross_play = cfg.get("cross_play", False)
     max_retries = cfg.get("max_retries", 0)
-    models = cfg["models"]
+    models = [normalize_model(m) for m in cfg["models"]]
     log_base = args.log_base or f".logs/{args.experiment}"
 
     runner = GAME_RUNNERS.get(game_type)
@@ -305,7 +305,7 @@ def main():
 
     pairs = _build_pairs(models, cross_play)
     if args.model:
-        pairs = [(p1, p2) for p1, p2 in pairs if args.model in (p1, p2)]
+        pairs = [(p1, p2) for p1, p2 in pairs if args.model in (p1["id"], p2["id"])]
 
     # ── Scan phase: report what's done and what's remaining ──
     print(f"\n{'='*60}")
@@ -319,7 +319,7 @@ def main():
     total_remaining = 0
 
     for model_p1, model_p2 in pairs:
-        pair_tag = f"{_safe_name(model_p1)}_vs_{_safe_name(model_p2)}"
+        pair_tag = f"{_safe_name(model_p1['id'])}_vs_{_safe_name(model_p2['id'])}"
         for setup in setups:
             log_dir = _get_log_dir(game_type, log_base, pair_tag, setup)
             behaviour_name = setup.get("behaviour_name", "")

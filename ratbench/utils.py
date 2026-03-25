@@ -3,6 +3,17 @@ import os
 import copy
 from ratbench.agents import ChatGPTAgent, ClaudeAgent
 
+
+def normalize_model(entry):
+    """Normalize a YAML model entry to ``{"id": str, "quantization": str|None}``.
+
+    Accepts either a plain string (``"org/model"``) or a dict
+    (``{"id": "org/model", "quantization": "4bit"}``).
+    """
+    if isinstance(entry, str):
+        return {"id": entry, "quantization": None}
+    return {"id": entry["id"], "quantization": entry.get("quantization")}
+
 # Lazy import to avoid loading torch when not needed
 _HF_AGENT = None
 
