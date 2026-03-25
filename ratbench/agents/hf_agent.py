@@ -26,6 +26,22 @@ from ratbench.constants import AGENT_ONE, AGENT_TWO
 _SHARED_MODELS: dict = {}  # (model_id, quantization) -> (model, tokenizer)
 
 
+def evict_unused_models(keep_keys: set):
+    """Remove cached models not in *keep_keys* and free their VRAM.
+
+    Args:
+        keep_keys: set of ``(model_id, quantization)`` tuples to keep.
+    """
+    to_remove = [k for k in _SHARED_MODELS if k not in keep_keys]
+    for key in to_remove:
+        print(f"[HuggingFaceAgent] Evicting {key[0]} from VRAM")
+        del _SHARED_MODELS[key]
+    if to_remove:
+        import gc
+        gc.collect()
+        torch.cuda.empty_cache()
+
+
 def _load_model(model_id: str, quantization=None, dtype=torch.bfloat16, device_map="auto"):
     """Load or retrieve a cached (model, tokenizer) pair.
 
@@ -39,7 +55,7 @@ def _load_model(model_id: str, quantization=None, dtype=torch.bfloat16, device_m
         tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
 
         load_kwargs = dict(
-            torch_dtype=dtype,
+            dtype=dtype,
             device_map=device_map,
             trust_remote_code=True,
         )
