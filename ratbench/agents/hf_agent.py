@@ -14,7 +14,7 @@ Usage:
 """
 
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig 
+from transformers import AutoModelForCausalLM, AutoModelForImageTextToText,  AutoTokenizer, BitsAndBytesConfig 
 from ratbench.agents.agents import Agent
 import time
 from ratbench.constants import AGENT_ONE, AGENT_TWO
@@ -32,6 +32,7 @@ def _load_model(model_id: str, dtype=torch.bfloat16, device_map="auto"):
         print(f"\n[HuggingFaceAgent] Loading {model_id} … (one-time)")
         tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
         
+        """
         # Configure 4-bit quantization to save VRAM
         quantization_config = BitsAndBytesConfig(
             load_in_4bit=True,
@@ -40,14 +41,22 @@ def _load_model(model_id: str, dtype=torch.bfloat16, device_map="auto"):
             bnb_4bit_quant_type="nf4"
         )
 
-        model = AutoModelForCausalLM.from_pretrained(
+        model = AutoModelForImageTextToText.from_pretrained(
             model_id,
             torch_dtype=dtype,
             device_map=device_map,
             trust_remote_code=True,
             quantization_config=quantization_config
         )
-        
+        """
+
+        model = AutoModelForImageTextToText.from_pretrained(
+                model_id,
+                torch_dtype=dtype,
+                device_map=device_map,
+                trust_remote_code=True
+         )
+
         _SHARED_MODELS[model_id] = (model, tokenizer)
     return _SHARED_MODELS[model_id]
 

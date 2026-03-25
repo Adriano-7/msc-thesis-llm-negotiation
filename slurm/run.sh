@@ -21,6 +21,8 @@
 # ============================================================
 
 set -euo pipefail
+source ~/miniconda3/etc/profile.d/conda.sh
+conda activate /data/01/up202105352/envs/negotiation
 
 # ── defaults ──────────────────────────────────────────────────
 EXPERIMENT="${EXPERIMENT:?ERROR: set EXPERIMENT via --export}"
