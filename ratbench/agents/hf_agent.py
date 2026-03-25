@@ -55,12 +55,13 @@ def _load_model(model_id: str, quantization=None, dtype=torch.bfloat16, device_m
         tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
 
         load_kwargs = dict(
-            dtype=dtype,
             device_map=device_map,
             trust_remote_code=True,
         )
 
         if quantization == "4bit":
+            # Don't pass dtype — BnB handles weight loading internally;
+            # bnb_4bit_compute_dtype sets the dtype used for computation.
             load_kwargs["quantization_config"] = BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_compute_dtype=dtype,
@@ -71,11 +72,14 @@ def _load_model(model_id: str, quantization=None, dtype=torch.bfloat16, device_m
             load_kwargs["quantization_config"] = BitsAndBytesConfig(
                 load_in_8bit=True,
             )
+        else:
+            load_kwargs["dtype"] = dtype
 
         try:
             model = AutoModelForImageTextToText.from_pretrained(model_id, **load_kwargs)
-        except ValueError:
-            # Not a vision model — fall back to text-only
+        except ValueError as e:
+            if "Unrecognized configuration class" not in str(e):
+                raise
             model = AutoModelForCausalLM.from_pretrained(model_id, **load_kwargs)
 
         _SHARED_MODELS[cache_key] = (model, tokenizer)
