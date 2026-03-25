@@ -72,10 +72,20 @@ def _load_model(model_id: str, quantization=None, dtype=torch.bfloat16, device_m
                 load_in_8bit=True,
             )
 
+        # BnB requires all layers on GPU. device_map="auto" estimates size
+        # pre-quantization and may offload to CPU, causing OOM or errors.
+        # Restrict to GPU(s) only so layers are quantized in-place on device.
+        if quantization:
+            load_kwargs["max_memory"] = {
+                i: torch.cuda.get_device_properties(i).total_mem
+                for i in range(torch.cuda.device_count())
+            }
+
         try:
             model = AutoModelForImageTextToText.from_pretrained(model_id, **load_kwargs)
-        except ValueError:
-            # Not a vision model — fall back to text-only
+        except ValueError as e:
+            if "Unrecognized configuration class" not in str(e):
+                raise
             model = AutoModelForCausalLM.from_pretrained(model_id, **load_kwargs)
 
         _SHARED_MODELS[cache_key] = (model, tokenizer)
