@@ -60,16 +60,6 @@ def _load_model(model_id: str, quantization=None, dtype=torch.bfloat16, device_m
             trust_remote_code=True,
         )
 
-        # BnB quantization requires all layers on GPU. The auto device-map
-        # planner estimates size pre-quantization and may try to offload to
-        # CPU, which BnB rejects.  Restrict max_memory to GPUs only so auto
-        # distributes across all available GPUs but never offloads to CPU.
-        if quantization:
-            load_kwargs["max_memory"] = {
-                i: torch.cuda.get_device_properties(i).total_mem
-                for i in range(torch.cuda.device_count())
-            }
-
         if quantization == "4bit":
             load_kwargs["quantization_config"] = BitsAndBytesConfig(
                 load_in_4bit=True,
@@ -83,18 +73,10 @@ def _load_model(model_id: str, quantization=None, dtype=torch.bfloat16, device_m
             )
 
         try:
-            try:
-                model = AutoModelForImageTextToText.from_pretrained(model_id, **load_kwargs)
-            except ValueError as e:
-                if "Unrecognized configuration class" not in str(e):
-                    raise
-                model = AutoModelForCausalLM.from_pretrained(model_id, **load_kwargs)
-        except Exception:
-            # Clean up GPU memory after a failed load attempt
-            import gc
-            gc.collect()
-            torch.cuda.empty_cache()
-            raise
+            model = AutoModelForImageTextToText.from_pretrained(model_id, **load_kwargs)
+        except ValueError:
+            # Not a vision model — fall back to text-only
+            model = AutoModelForCausalLM.from_pretrained(model_id, **load_kwargs)
 
         _SHARED_MODELS[cache_key] = (model, tokenizer)
     return _SHARED_MODELS[cache_key]
