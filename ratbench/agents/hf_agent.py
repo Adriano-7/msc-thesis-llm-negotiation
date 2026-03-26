@@ -42,11 +42,12 @@ def evict_unused_models(keep_keys: set):
         torch.cuda.empty_cache()
 
 
-def _load_model(model_id: str, quantization=None, dtype=torch.bfloat16, device_map="auto"):
+def _load_model(model_id: str, quantization=None, model_type="llm", dtype=torch.bfloat16, device_map="auto"):
     """Load or retrieve a cached (model, tokenizer) pair.
 
     Args:
         quantization: None (no quantization), "4bit", or "8bit".
+        model_type: "llm" (text-only, default) or "vlm" (vision-language).
     """
     cache_key = (model_id, quantization)
     if cache_key not in _SHARED_MODELS:
@@ -75,12 +76,8 @@ def _load_model(model_id: str, quantization=None, dtype=torch.bfloat16, device_m
         else:
             load_kwargs["dtype"] = dtype
 
-        try:
-            model = AutoModelForImageTextToText.from_pretrained(model_id, **load_kwargs)
-        except ValueError as e:
-            if "Unrecognized configuration class" not in str(e):
-                raise
-            model = AutoModelForCausalLM.from_pretrained(model_id, **load_kwargs)
+        AutoClass = AutoModelForImageTextToText if model_type == "vlm" else AutoModelForCausalLM
+        model = AutoClass.from_pretrained(model_id, **load_kwargs)
 
         _SHARED_MODELS[cache_key] = (model, tokenizer)
     return _SHARED_MODELS[cache_key]
@@ -97,6 +94,7 @@ class HuggingFaceAgent(Agent):
         top_p: float = 0.9,
         do_sample: bool = True,
         quantization: str = None,
+        model_type: str = "llm",
         # These are passed through but not used for loading:
         **kwargs,
     ):
@@ -111,7 +109,7 @@ class HuggingFaceAgent(Agent):
         self.do_sample = do_sample
 
         # Load (or reuse) model
-        self.model, self.tokenizer = _load_model(self.model_id, quantization=quantization)
+        self.model, self.tokenizer = _load_model(self.model_id, quantization=quantization, model_type=model_type)
 
     # ------------------------------------------------------------------
     # Agent interface
