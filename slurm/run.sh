@@ -15,9 +15,8 @@
 # Parameterised SLURM launcher for NegotiationArena
 #
 # Usage:
-#   sbatch --export=EXPERIMENT=buysell_section_one,MODEL=Qwen/Qwen2.5-7B-Instruct slurm/run.sh
-#   sbatch --export=EXPERIMENT=buysell_section_one slurm/run.sh          # runs all models in config
-#   sbatch --export=EXPERIMENT=trading_section_one,NUM_RUNS=5 slurm/run.sh  # quick test
+#   sbatch --export=EXPERIMENT=buysell_section_one,SIZE=medium slurm/run.sh
+#   sbatch --export=EXPERIMENT=trading_section_one,NUM_RUNS=5 slurm/run.sh
 # ============================================================
 
 set -euo pipefail
@@ -29,6 +28,7 @@ EXPERIMENT="${EXPERIMENT:?ERROR: set EXPERIMENT via --export}"
 CONFIG="${CONFIG:-configs/experiments.yaml}"
 MODEL="${MODEL:-}"          # empty = run all models in config
 NUM_RUNS="${NUM_RUNS:-}"    # empty = use config default
+SIZE="${SIZE:-}"            # [very_small, small, medium, big]
 
 # ── environment ───────────────────────────────────────────────
 set -a
@@ -42,10 +42,12 @@ mkdir -p logs/slurm
 CMD="python runner/run_experiment.py --config ${CONFIG} --experiment ${EXPERIMENT}"
 [ -n "$MODEL" ]    && CMD="$CMD --model \"$MODEL\""
 [ -n "$NUM_RUNS" ] && CMD="$CMD --num_runs $NUM_RUNS"
+[ -n "$SIZE" ]     && CMD="$CMD --model_group $SIZE"
 
 echo "============================================"
 echo "EXPERIMENT : $EXPERIMENT"
-echo "MODEL      : ${MODEL:-<all from config>}"
+echo "SIZE GROUP : ${SIZE:-<fallback to config default>}"
+echo "MODEL      : ${MODEL:-<all from group>}"
 echo "NUM_RUNS   : ${NUM_RUNS:-<from config>}"
 echo "CMD        : $CMD"
 echo "============================================"

@@ -245,6 +245,13 @@ def main():
         help="Name of the experiment block in the YAML file",
     )
     parser.add_argument(
+        "--model_group",
+        type=str,
+        choices=["very_small", "small", "medium", "big"],
+        default=None,
+        help="Override the model list by selecting a predefined size group from the _shared config",
+    )
+    parser.add_argument(
         "--model",
         type=str,
         default=None,
@@ -281,7 +288,19 @@ def main():
     setups = cfg["setups"]
     cross_play = cfg.get("cross_play", False)
     max_retries = cfg.get("max_retries", 0)
-    models = [normalize_model(m) for m in cfg["models"]]
+    
+    # Extract the correct model list
+    if args.model_group:
+        shared_key = f"models_{args.model_group}"
+        if "_shared" in all_configs and shared_key in all_configs["_shared"]:
+            raw_models = all_configs["_shared"][shared_key]
+        else:
+            print(f"Model group '{args.model_group}' not found under '_shared' in {args.config}")
+            sys.exit(1)
+    else:
+        raw_models = cfg.get("models", [])
+        
+    models = [normalize_model(m) for m in raw_models]
     log_base = args.log_base or f".logs/{args.experiment}"
 
     runner = GAME_RUNNERS.get(game_type)
@@ -310,6 +329,7 @@ def main():
     print(f"Game       : {game_type}")
     print(f"Cross-play : {cross_play}")
     print(f"Max retries: {max_retries}")
+    print(f"Model Grp  : {args.model_group if args.model_group else 'default from config'}")
     print(f"Pairs      : {len(pairs)}")
     for p1, p2 in pairs:
         label = "self-play" if p1["id"] == p2["id"] else "cross-play"
