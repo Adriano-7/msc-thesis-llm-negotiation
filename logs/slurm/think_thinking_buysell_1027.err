@@ -1,0 +1,56 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 4 files:   0%|          | 0/4 [00:00<?, ?it/s]Fetching 4 files: 100%|██████████| 4/4 [00:00<00:00, 13842.59it/s]
+The fast path is not available because one of the required library is not installed. Falling back to torch implementation. To install follow https://github.com/fla-org/flash-linear-attention#installation and https://github.com/Dao-AILab/causal-conv1d
+Loading weights:   0%|          | 0/427 [00:00<?, ?it/s]Loading weights:   0%|          | 2/427 [00:00<00:22, 18.85it/s]Loading weights:   5%|▌         | 23/427 [00:00<00:03, 122.33it/s]Loading weights:  10%|▉         | 41/427 [00:00<00:02, 131.58it/s]Loading weights:  14%|█▍        | 60/427 [00:00<00:02, 144.87it/s]Loading weights:  19%|█▊        | 80/427 [00:00<00:02, 153.41it/s]Loading weights:  22%|██▏       | 96/427 [00:00<00:02, 143.38it/s]Loading weights:  27%|██▋       | 115/427 [00:00<00:02, 152.30it/s]Loading weights:  31%|███       | 132/427 [00:00<00:01, 155.91it/s]Loading weights:  35%|███▍      | 148/427 [00:01<00:01, 139.70it/s]Loading weights:  40%|████      | 172/427 [00:01<00:01, 161.61it/s]Loading weights:  44%|████▍     | 189/427 [00:01<00:01, 146.74it/s]Loading weights:  48%|████▊     | 206/427 [00:01<00:01, 149.01it/s]Loading weights:  53%|█████▎    | 225/427 [00:01<00:01, 156.98it/s]Loading weights:  56%|█████▋    | 241/427 [00:01<00:01, 143.16it/s]Loading weights:  60%|██████    | 258/427 [00:01<00:01, 147.02it/s]Loading weights:  65%|██████▌   | 278/427 [00:01<00:00, 154.03it/s]Loading weights:  69%|██████▉   | 294/427 [00:02<00:00, 142.78it/s]Loading weights:  73%|███████▎  | 312/427 [00:02<00:00, 148.53it/s]Loading weights:  78%|███████▊  | 332/427 [00:02<00:00, 155.66it/s]Loading weights:  81%|████████▏ | 348/427 [00:02<00:00, 153.06it/s]Loading weights:  85%|████████▌ | 364/427 [00:02<00:00, 151.68it/s]Loading weights:  90%|████████▉ | 384/427 [00:02<00:00, 156.81it/s]Loading weights:  94%|█████████▎| 400/427 [00:02<00:00, 139.72it/s]Loading weights:  98%|█████████▊| 417/427 [00:02<00:00, 143.11it/s]Loading weights: 100%|██████████| 427/427 [00:02<00:00, 146.36it/s]
+Traceback (most recent call last):
+  File "/home/up202105352/NegotiationArena/ratbench/utils.py", line 85, in text_to_dict
+    return {k: int(v) for k, v in (item.split(": ") for item in s.split(", "))}
+                          ^^^^
+ValueError: not enough values to unpack (expected 2, got 1)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/up202105352/NegotiationArena/runner/run_experiment.py", line 147, in run_buysell
+    game.run()
+    ~~~~~~~~^^
+  File "/home/up202105352/NegotiationArena/ratbench/alternating_game.py", line 193, in run
+    self.write_game_state(self.players, response, parse_retries=retries)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/up202105352/NegotiationArena/ratbench/alternating_game.py", line 74, in write_game_state
+    raise e
+  File "/home/up202105352/NegotiationArena/ratbench/alternating_game.py", line 71, in write_game_state
+    agent_message = self.game_interface.parse(response)
+  File "/home/up202105352/NegotiationArena/games/buy_sell_game/interface.py", line 49, in parse
+    resources = Resources.from_string(get_tag_contents(response, RESOURCES_TAG))
+  File "/home/up202105352/NegotiationArena/ratbench/game_objects/resource.py", line 14, in from_string
+    resource_dict = text_to_dict(string)
+  File "/home/up202105352/NegotiationArena/ratbench/utils.py", line 87, in text_to_dict
+    raise ValueError(
+    ...<2 lines>...
+    ) from exc
+ValueError: Could not parse resource string '` tag content, which should be in the format `ZUP: 100`.
+
+Looking at the error message more carefully, it says "Expected format: 'KEY: VALUE, KEY: VALUE'". This suggests that the content inside the tags should be in a specific key-value format.
+
+Let me re-examine the rules. The initial prompt shows:
+```
+<my resources> ZUP: 100'. Expected format: 'KEY: VALUE, KEY: VALUE' (e.g. 'X: 1' or 'ZUP: 50').
+Traceback (most recent call last):
+  File "/home/up202105352/NegotiationArena/runner/run_experiment.py", line 147, in run_buysell
+    game.run()
+    ~~~~~~~~^^
+  File "/home/up202105352/NegotiationArena/ratbench/alternating_game.py", line 193, in run
+    self.write_game_state(self.players, response, parse_retries=retries)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/up202105352/NegotiationArena/ratbench/alternating_game.py", line 74, in write_game_state
+    raise e
+  File "/home/up202105352/NegotiationArena/ratbench/alternating_game.py", line 71, in write_game_state
+    agent_message = self.game_interface.parse(response)
+  File "/home/up202105352/NegotiationArena/games/buy_sell_game/interface.py", line 50, in parse
+    goal = get_tag_contents(response, GOALS_TAG)
+  File "/home/up202105352/NegotiationArena/ratbench/utils.py", line 68, in get_tag_contents
+    raise ValueError(
+    ...<3 lines>...
+    )
+ValueError: Missing required tag: <my goals>...</my goals>. Make sure your response contains both the opening <my goals> and closing </my goals> tags.
