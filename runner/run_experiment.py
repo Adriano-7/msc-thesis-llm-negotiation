@@ -50,9 +50,18 @@ load_dotenv(".env")
 
 
 # ── helpers ───────────────────────────────────────────────────────────
-def _safe_name(model_id: str) -> str:
-    """Turn 'Qwen/Qwen2.5-7B-Instruct' into 'qwen2.5-7b-instruct'."""
-    return model_id.split("/")[-1].lower()
+def _safe_name(model) -> str:
+    """Turn a model dict or ID string into a filesystem-safe label.
+
+    Appends '_thinking' when ``enable_thinking`` is True so that
+    thinking and non-thinking variants get distinct log directories.
+    """
+    if isinstance(model, dict):
+        name = model["id"].split("/")[-1].lower()
+        if model.get("enable_thinking"):
+            name += "_thinking"
+        return name
+    return model.split("/")[-1].lower()
 
 
 def _build_pairs(models: list, cross_play) -> list:
@@ -68,7 +77,7 @@ def _build_pairs(models: list, cross_play) -> list:
     if cross_play == "all":
         return list(itertools.product(models, models))
     elif cross_play:
-        return [(a, b) for a, b in itertools.product(models, models) if a["id"] != b["id"]]
+        return [(a, b) for a, b in itertools.product(models, models) if a != b]
     else:
         return [(m, m) for m in models]
 
@@ -87,7 +96,7 @@ def run_buysell(model_p1, model_p2, setup, num_runs, iterations, log_base, max_r
     tag = f"seller{seller_val}_buyer{buyer_val}"
     if behaviour_name:
         tag = f"{tag}_{behaviour_name}"
-    pair_tag = f"{_safe_name(model_p1['id'])}_vs_{_safe_name(model_p2['id'])}"
+    pair_tag = f"{_safe_name(model_p1)}_vs_{_safe_name(model_p2)}"
     log_dir = os.path.join(log_base, pair_tag, tag)
 
     success, errors = 0, 0
@@ -136,7 +145,7 @@ def run_trading(model_p1, model_p2, setup, num_runs, iterations, log_base, max_r
     p2_behaviour = setup.get("p2_behaviour", "")
     behaviour_name = setup.get("behaviour_name", "")
 
-    pair_tag = f"{_safe_name(model_p1['id'])}_vs_{_safe_name(model_p2['id'])}"
+    pair_tag = f"{_safe_name(model_p1)}_vs_{_safe_name(model_p2)}"
     log_tag = pair_tag
     if behaviour_name:
         log_tag = f"{pair_tag}_{behaviour_name}"
@@ -183,7 +192,7 @@ def run_ultimatum(model_p1, model_p2, setup, num_runs, iterations, log_base, max
     p2_behaviour = setup.get("p2_behaviour", "")
     behaviour_name = setup.get("behaviour_name", "")
 
-    pair_tag = f"{_safe_name(model_p1['id'])}_vs_{_safe_name(model_p2['id'])}"
+    pair_tag = f"{_safe_name(model_p1)}_vs_{_safe_name(model_p2)}"
     log_tag = pair_tag
     if behaviour_name:
         log_tag = f"{pair_tag}_{behaviour_name}"
@@ -354,7 +363,7 @@ def main():
     print(f"Pairs      : {len(pairs)}")
     for p1, p2 in pairs:
         label = "self-play" if p1["id"] == p2["id"] else "cross-play"
-        print(f"  {_safe_name(p1['id'])} vs {_safe_name(p2['id'])}  ({label})")
+        print(f"  {_safe_name(p1)} vs {_safe_name(p2)}  ({label})")
     print(f"Setups     : {len(setups)} ({len(default_setups)} default, {len(behaviour_setups)} with personas)")
     for s in setups:
         bname = s.get("behaviour_name", "default")

@@ -13,11 +13,14 @@ Usage:
     )
 """
 
+import re
 import torch
-from transformers import AutoModelForCausalLM, AutoModelForImageTextToText,  AutoTokenizer, BitsAndBytesConfig 
+from transformers import AutoModelForCausalLM, AutoModelForImageTextToText,  AutoTokenizer, BitsAndBytesConfig
 from ratbench.agents.agents import Agent
 import time
 from ratbench.constants import AGENT_ONE, AGENT_TWO
+
+_THINK_RE = re.compile(r"<think>.*?</think>\s*", flags=re.DOTALL)
 
 # ---------------------------------------------------------------------------
 # Global model cache – the model is loaded into VRAM only ONCE per process,
@@ -111,6 +114,11 @@ class HuggingFaceAgent(Agent):
         self.enable_thinking = enable_thinking
         self._quantization = quantization
         self._model_type = model_type
+        self._last_thinking_content = None
+
+        # Auto-increase token budget for thinking mode
+        if self.enable_thinking and self.max_new_tokens <= 1024:
+            self.max_new_tokens = 4096
 
         # Model is loaded lazily on first chat() call
         self.model = model_id
@@ -176,7 +184,17 @@ class HuggingFaceAgent(Agent):
         output_ids = self._model.generate(**inputs, **gen_kwargs)
 
         new_tokens = output_ids[0][inputs.input_ids.shape[1] :]
-        return self._tokenizer.decode(new_tokens, skip_special_tokens=True)
+        raw = self._tokenizer.decode(new_tokens, skip_special_tokens=True)
+
+        # Strip model-native thinking tags (e.g. Qwen3.5 <think>...</think>)
+        think_match = _THINK_RE.search(raw)
+        if think_match:
+            self._last_thinking_content = think_match.group(0)
+            raw = raw[:think_match.start()] + raw[think_match.end():]
+        else:
+            self._last_thinking_content = None
+
+        return raw
 
     def update_conversation_tracking(self, role: str, message: str):
         self.conversation.append({"role": role, "content": message})
