@@ -80,11 +80,11 @@ if games:
         st.warning("No games match the current filters.")
     else:
         st.markdown("### Select a Conversation")
-        col_game, col_player = st.columns([3, 1])
+        col_game, col_view = st.columns([3, 1])
         with col_game:
             selected_game = st.selectbox("Which Game?", list(games_summary_df["list_name"]))
-        with col_player:
-            option = st.selectbox("Which Player Perspective?", (1, 2))
+        with col_view:
+            view_option = st.selectbox("View Mode", ["Unified Timeline", "Player 1 Perspective", "Player 2 Perspective"])
 
         game_to_load = get_log_path_from_summary(selected_game, games_summary_df)
 
@@ -93,20 +93,71 @@ if games:
             game_state = json.load(f)
 
         st.markdown("---")
-        st.write(f"**You are looking at Player {option}'s view**")
-        for index, msg in enumerate(game_state["players"][option - 1]["conversation"]):
-            txtmsg = msg["content"]
-            sys_prompt = True if index == 0 else False
+        
+        if view_option == "Unified Timeline":
+            st.write("**Unified Conversation View**")
+            
+            p1 = game_state["players"][0]
+            p2 = game_state["players"][1]
+            
+            p1_name = p1.get("agent_name", "Player 1")
+            p2_name = p2.get("agent_name", "Player 2")
+            
+            # Show System Prompts side-by-side
+            col_p1, col_p2 = st.columns(2)
+            
+            with col_p1:
+                with st.expander(f"Check System Prompt - {p1_name}"):
+                    sys_prompt_txt = p1["conversation"][0]["content"]
+                    st.write(text_formatting(sys_prompt_txt, True))
+            
+            with col_p2:
+                with st.expander(f"Check System Prompt - {p2_name}"):
+                    sys_prompt_txt = p2["conversation"][0]["content"]
+                    st.write(text_formatting(sys_prompt_txt, True))
+            
+            st.markdown("---")
+            
+            # Gather assistant messages
+            p1_conv = [msg for msg in p1["conversation"] if msg["role"] == "assistant"]
+            p2_conv = [msg for msg in p2["conversation"] if msg["role"] == "assistant"]
+            
+            max_len = max(len(p1_conv), len(p2_conv))
+            
+            red_avatar = os.path.join(os.path.dirname(os.path.dirname(__file__)), "red_robot.svg")
+            blue_avatar = os.path.join(os.path.dirname(os.path.dirname(__file__)), "blue_robot.svg")
+            
+            for i in range(max_len):
+                if i < len(p1_conv):
+                    with st.chat_message(p1_name, avatar=red_avatar):
+                        st.write(text_formatting(p1_conv[i]["content"], False))
+                
+                if i < len(p2_conv):
+                    with st.chat_message(p2_name, avatar=blue_avatar):
+                        st.write(text_formatting(p2_conv[i]["content"], False))
+                        
+        else:
+            option = int(view_option.split(" ")[1])
+            st.write(f"**You are looking at Player {option}'s view**")
+            
+            red_avatar = os.path.join(os.path.dirname(os.path.dirname(__file__)), "red_robot.svg")
+            blue_avatar = os.path.join(os.path.dirname(os.path.dirname(__file__)), "blue_robot.svg")
+            
+            for index, msg in enumerate(game_state["players"][option - 1]["conversation"]):
+                txtmsg = msg["content"]
+                sys_prompt = True if index == 0 else False
 
-            for c in ALL_CONSTANTS:
                 txtmsg = text_formatting(txtmsg, sys_prompt)
 
-            if sys_prompt:
-                with st.expander("Check System Prompt"):
-                    with st.chat_message(msg["role"]):
+                if sys_prompt:
+                    with st.expander("Check System Prompt"):
+                        with st.chat_message(msg["role"]):
+                            st.write(txtmsg)
+                else:
+                    avatar = None
+                    if msg["role"] == "assistant":
+                        avatar = red_avatar if option == 1 else blue_avatar
+                    with st.chat_message(msg["role"], avatar=avatar):
                         st.write(txtmsg)
-            else:
-                with st.chat_message(msg["role"]):
-                    st.write(txtmsg)
 else:
     st.info("No games found in the selected directory.")
