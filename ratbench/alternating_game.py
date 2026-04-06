@@ -3,6 +3,7 @@ import time
 import json
 import copy
 import inspect
+import traceback as _traceback
 from pathlib import Path
 from typing import List
 from abc import ABC, abstractmethod, abstractproperty
@@ -174,61 +175,72 @@ class AlternatingGame(Game):
 
         # patrick said it was a good idea to do it this way
         self.log_state()
-        # start with iteration = 1
-        for iteration in range(self.current_iteration, self.iterations + 1):
-            self.current_iteration = iteration
+        try:
+            # start with iteration = 1
+            for iteration in range(self.current_iteration, self.iterations + 1):
+                self.current_iteration = iteration
 
-            # get ratbench state from last iteration
-            message = self.read_iteration_message(iteration - 1)
+                # get ratbench state from last iteration
+                message = self.read_iteration_message(iteration - 1)
 
-            # player to take a step/action based on current ratbench state
-            response = self.players[self.turn].step(message)
-            # print(response)
+                # player to take a step/action based on current ratbench state
+                response = self.players[self.turn].step(message)
+                # print(response)
 
-            # update ratbench state based on players and player response
-            # with optional retry loop for parse error self-correction
-            retries = 0
-            while True:
-                try:
-                    self.write_game_state(self.players, response, parse_retries=retries)
-                    break
-                except Exception as e:
-                    if retries >= self.max_retries:
-                        raise
-                    retries += 1
-                    self.total_parse_retries += 1
-                    print(f"[RETRY {retries}/{self.max_retries}] Parse failed: {e}")
-                    error_msg = (
-                        f"Your previous response could not be parsed.\n\n"
-                        f"Your response was:\n{response}\n\n"
-                        f"Error: {e}\n\n"
-                        f"Please try again, making sure to follow the exact "
-                        f"response format specified in the rules."
-                    )
-                    self.players[self.turn].update_conversation_tracking("user", error_msg)
-                    response = self.players[self.turn].think()
+                # update ratbench state based on players and player response
+                # with optional retry loop for parse error self-correction
+                retries = 0
+                while True:
+                    try:
+                        self.write_game_state(self.players, response, parse_retries=retries)
+                        break
+                    except Exception as e:
+                        if retries >= self.max_retries:
+                            raise
+                        retries += 1
+                        self.total_parse_retries += 1
+                        print(f"[RETRY {retries}/{self.max_retries}] Parse failed: {e}")
+                        error_msg = (
+                            f"Your previous response could not be parsed.\n\n"
+                            f"Your response was:\n{response}\n\n"
+                            f"Error: {e}\n\n"
+                            f"Please try again, making sure to follow the exact "
+                            f"response format specified in the rules."
+                        )
+                        self.players[self.turn].update_conversation_tracking("user", error_msg)
+                        response = self.players[self.turn].think()
 
-            # for debug
-            self.view_state(
-                ignore=[
-                    "player_public_answer_string",
-                    "player_public_info_dict",
-                    "player_private_info_dict",
-                    "player_state",
-                ]
-            )
+                # for debug
+                self.view_state(
+                    ignore=[
+                        "player_public_answer_string",
+                        "player_public_info_dict",
+                        "player_private_info_dict",
+                        "player_state",
+                    ]
+                )
 
-            # for logging / reproducibility
-            self.log_state()
-
-            # check if ratbench is over
-            if self.game_over():
-                self.check_winner()
+                # for logging / reproducibility
                 self.log_state()
-                return
 
-            self.get_next_player()
-            print("=============\n")
+                # check if ratbench is over
+                if self.game_over():
+                    self.check_winner()
+                    self.log_state()
+                    return
+
+                self.get_next_player()
+                print("=============\n")
+        except Exception as e:
+            self.game_state.append({
+                "current_iteration": "ERROR",
+                "turn": None,
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+                "traceback": _traceback.format_exc(),
+            })
+            self.log_state()
+            raise
 
     def log_human_readable_state(self):
         """
@@ -258,7 +270,7 @@ class AlternatingGame(Game):
         # log ratbench state
         for state in self.game_state[1:]:
             # turn = state['turn']
-            if state["current_iteration"] == "END":
+            if state["current_iteration"] in ("END", "ERROR"):
                 continue
             data = [
                 "Current Iteration: {}".format(state["current_iteration"]),
@@ -276,8 +288,9 @@ class AlternatingGame(Game):
 
         # log ratbench summary
         log_str += "------------------ \n"
-        if self.game_state[-1]["current_iteration"] == "END":
-            state = self.game_state[-1]
+        last_state = self.game_state[-1]
+        if last_state["current_iteration"] == "END":
+            state = last_state
             if "summary" in state:
                 data = [
                     "Current Iteration: {}".format(state["current_iteration"]),
@@ -285,6 +298,11 @@ class AlternatingGame(Game):
                     *["{}: {}".format(k, v) for k, v in state["summary"].items()],
                 ]
                 log_str += "\n".join(data)
+        elif last_state["current_iteration"] == "ERROR":
+            log_str += "ERROR: {}: {}\n".format(
+                last_state.get("error_type", "Unknown"),
+                last_state.get("error_message", ""),
+            )
 
         # write to log-file
         with open(os.path.join(self.log_path, "interaction.log"), "w") as f:

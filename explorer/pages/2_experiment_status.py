@@ -56,7 +56,11 @@ def load_status() -> pd.DataFrame:
 
             with open(gs_path) as f:
                 data = json.load(f)
-            completed = data["game_state"][-1].get("current_iteration") == "END"
+            last_state = data["game_state"][-1]
+            completed = last_state.get("current_iteration") == "END"
+            is_error = last_state.get("current_iteration") == "ERROR"
+            error_type = last_state.get("error_type", "") if is_error else ""
+            error_message = last_state.get("error_message", "") if is_error else ""
 
             records.append(
                 {
@@ -67,6 +71,8 @@ def load_status() -> pd.DataFrame:
                     "Pair": pair_tag,
                     "Setup": setup_tag,
                     "Completed": completed,
+                    "Error Type": error_type,
+                    "Error Message": error_message,
                 }
             )
         except Exception:
@@ -120,3 +126,32 @@ col4.metric("Incomplete Combinations", f"{incomplete_combos:,}")
 st.markdown("---")
 
 st.dataframe(grouped, use_container_width=True, hide_index=True)
+
+# --- Error Breakdown (incomplete games only) ---
+incomplete_df = filtered[~filtered["Completed"]]
+if not incomplete_df.empty:
+    st.markdown("---")
+    st.subheader("Error Breakdown (Incomplete Games)")
+
+    with_error = incomplete_df[incomplete_df["Error Type"] != ""]
+    without_error = incomplete_df[incomplete_df["Error Type"] == ""]
+
+    ec1, ec2 = st.columns(2)
+    ec1.metric("With Captured Error", len(with_error))
+    ec2.metric("Unknown (pre-fix runs)", len(without_error))
+
+    # Error type counts grouped by section / game / error type
+    display_df = incomplete_df.copy()
+    display_df["Error Type"] = display_df["Error Type"].replace("", "Unknown")
+    error_counts = (
+        display_df.groupby(["Section", "Game", "Error Type"])
+        .size()
+        .reset_index(name="Count")
+        .sort_values("Count", ascending=False)
+    )
+    st.dataframe(error_counts, use_container_width=True, hide_index=True)
+
+    with st.expander("Show individual error details"):
+        detail = display_df[["Section", "Game", "Pair", "Setup", "Error Type", "Error Message"]].copy()
+        detail["Error Message"] = detail["Error Message"].str[:120]
+        st.dataframe(detail, use_container_width=True, hide_index=True)
