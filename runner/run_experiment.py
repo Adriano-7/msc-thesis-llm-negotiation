@@ -21,6 +21,7 @@ Usage:
 
 import sys
 import os
+import re
 import itertools
 
 sys.path.append(".")
@@ -229,6 +230,26 @@ GAME_RUNNERS = {
 }
 
 
+# ── log path derivation ───────────────────────────────────────────────
+def _derive_log_base(experiment: str, model_group: str) -> str:
+    """
+    Derive the nested log directory from the experiment name.
+
+    section_one experiments  → .logs/section_one/<base>/no_retries|retry<n>/
+    section_two experiments  → .logs/section_two/<experiment>/<model_group>/
+    anything else            → .logs/<experiment>/
+    """
+    if "section_one" in experiment:
+        m = re.match(r"^(.+_section_one)_retry(\d+)$", experiment)
+        if m:
+            return f".logs/section_one/{m.group(1)}/retry{m.group(2)}"
+        return f".logs/section_one/{experiment}/no_retries"
+    if "section_two" in experiment:
+        group = model_group or "default"
+        return f".logs/section_two/{experiment}/{group}"
+    return f".logs/{experiment}"
+
+
 # ── main ──────────────────────────────────────────────────────────────
 def main():
     parser = argparse.ArgumentParser(description="NegotiationArena experiment runner")
@@ -301,7 +322,7 @@ def main():
         raw_models = cfg.get("models", [])
         
     models = [normalize_model(m) for m in raw_models]
-    log_base = args.log_base or f".logs/{args.experiment}"
+    log_base = args.log_base or _derive_log_base(args.experiment, args.model_group)
 
     runner = GAME_RUNNERS.get(game_type)
     if runner is None:
