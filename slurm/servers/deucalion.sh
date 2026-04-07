@@ -11,7 +11,7 @@
 # ============================================================
 
 # ── SETUP: Fill in your project details once ─────────────────
-PROJECT_DIR="/projects/F202500007HPCVLABUPORTO"
+PROJECT_DIR="/projects/F202500007HPCVLABUPORTO/amachado.up"
 GPU_ACCOUNT="f202500007hpcvlabuportog"
 # ──────────────────────────────────────────────────────────────
 
