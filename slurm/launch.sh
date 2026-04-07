@@ -84,7 +84,10 @@ DEFAULT_EXPERIMENTS=(
 )
 
 # Allow override via environment
-if [ -n "${SIZES:-}" ]; then
+# Use SIZES=none for experiments that define their own models in the YAML
+if [ "${SIZES:-}" = "none" ]; then
+    SIZE_ARRAY=("none")
+elif [ -n "${SIZES:-}" ]; then
     IFS=' ' read -ra SIZE_ARRAY <<< "$SIZES"
 else
     SIZE_ARRAY=("${DEFAULT_SIZES[@]}")
@@ -127,8 +130,13 @@ mkdir -p logs/slurm
 
 for SIZE in "${SIZE_ARRAY[@]}"; do
     for EXP in "${EXP_ARRAY[@]}"; do
-        JOB_NAME="${EXP}_${SIZE}"
-        EXPORT_STR="ALL,${ENV_VARS},EXPERIMENT=${EXP},SIZE=${SIZE}"
+        if [ "$SIZE" = "none" ]; then
+            JOB_NAME="${EXP}"
+            EXPORT_STR="ALL,${ENV_VARS},EXPERIMENT=${EXP}"
+        else
+            JOB_NAME="${EXP}_${SIZE}"
+            EXPORT_STR="ALL,${ENV_VARS},EXPERIMENT=${EXP},SIZE=${SIZE}"
+        fi
 
         FULL_CMD=(sbatch
             --job-name="$JOB_NAME"

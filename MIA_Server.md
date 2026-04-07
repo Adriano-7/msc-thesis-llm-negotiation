@@ -222,3 +222,16 @@ After job is completed you should see a file named `slurm-<XYZ>.out`, where `<XY
 
 This project is an ongoing effort from the CSE department. Sudden changes may occur. We appreciate your patience and contribution.
 
+## NVIDIA-SMI Results
+
+**System Environment:**
+* **Driver Version:** 575.57.08
+* **CUDA Version:** 12.9
+
+| Node | GPU ID | GPU Model | VRAM Usage | Temperature | Power Usage | GPU Utilization | Active Processes |
+| :--- | :---: | :--- | :--- | :---: | :--- | :---: | :--- |
+| `srv01` | 0 | NVIDIA L40S | 0 MiB / 46,068 MiB | 37°C | 86W / 350W | 0% | None |
+| `srv02` | 0 | NVIDIA L40S | 0 MiB / 46,068 MiB | 33°C | 33W / 350W | 0% | None |
+| `srv02` | 1 | NVIDIA L40S | 0 MiB / 46,068 MiB | 30°C | 32W / 350W | 0% | None |
+
+*(Note: Data reflects idle states captured on March 9-10, 2026)*
