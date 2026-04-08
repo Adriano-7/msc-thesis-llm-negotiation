@@ -65,7 +65,7 @@ SBATCH_FLAGS=(
 [ -n "${SLURM_MEM:-}" ]     && SBATCH_FLAGS+=(--mem="$SLURM_MEM")
 
 # ── Experiments and sizes ────────────────────────────────────
-DEFAULT_SIZES=("very_small" "small")
+DEFAULT_SIZES=("none")
 DEFAULT_EXPERIMENTS=(
     # Section 1: Baselines
     "buysell_section_one"
