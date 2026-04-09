@@ -911,7 +911,16 @@ squeue --me
 tail -f logs/slurm/<job_name>_*.log
 ```
 
-### 
+### Git Pull (SSH key setup per session)
+The SSH agent does not persist across login sessions. Before `git pull`, run:
+
+```bash
+eval "$(ssh-agent -s)"
+ssh-add ~/.ssh/id_ed25519
+git pull
+```
+
+### Some Warnings 
 - **Home quota:** Never install anything in `/home/`. The 25 GB / 25,000 file limit fills up fast. Use symlinks for `.vscode-server`, `.cache`, etc.
 - **No internet on GPU partitions:** All models must be pre-downloaded. The profile sets `TRANSFORMERS_OFFLINE=1` automatically.
 - **GPU billing:** 1 GPU = 32 CPUs. Requesting >32 CPUs per GPU bills for extra GPU-hours.
