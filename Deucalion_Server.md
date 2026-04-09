@@ -804,4 +804,119 @@ srun python distributed_train.py
 
 ---
 
-*Last updated: April 2026 — based on official Deucalion documentation at https://docs.macc.fccn.pt*
+---
+
+## 14. NegotiationArena Project Setup on Deucalion
+
+This section documents the concrete setup of this project on Deucalion to have full context.
+
+### Account & Project Details
+
+| Field | Value |
+|-------|-------|
+| Username | `amachado.up` |
+| SSH | `ssh deucalion` (via `~/.ssh/config`) |
+| Project directory | `/projects/F202500007HPCVLABUPORTO` |
+| User workspace | `/projects/F202500007HPCVLABUPORTO/amachado.up` |
+| GPU account | `f202500007hpcvlabuportog` |
+| x86 account | `f202500007hpcvlabuportox` |
+| ARM account | `f202500007hpcvlabuportoa` |
+
+### Directory Layout
+
+```
+/projects/F202500007HPCVLABUPORTO/amachado.up/
+  MultiAgent-Negotiation/     # Git repo (cloned here)
+  miniconda3/                  # Miniconda installation
+  envs/
+    negotiation/               # Conda environment (Python 3.12)
+  huggingface/                 # HF_HOME — all model weights cached here
+  .conda/
+    conda_envs/                # Conda env cache (redirected from ~/.conda)
+    conda_pkgs/                # Conda package cache (redirected from ~/.conda)
+```
+
+**Symlinks in `$HOME` (to avoid /home/ quota):**
+```
+~/.vscode-server  → /projects/F202500007HPCVLABUPORTO/amachado.up/.vscode-server
+~/.cache          → /projects/F202500007HPCVLABUPORTO/amachado.up/.cache  (if created)
+```
+
+### Conda Configuration
+
+`~/.condarc` redirects all conda data to `/projects/`:
+```yaml
+envs_dirs:
+  - /projects/F202500007HPCVLABUPORTO/amachado.up/.conda/conda_envs
+pkgs_dirs:
+  - /projects/F202500007HPCVLABUPORTO/amachado.up/.conda/conda_pkgs
+```
+
+### Environment Activation (inside a job or interactive session)
+
+```bash
+source /projects/F202500007HPCVLABUPORTO/amachado.up/miniconda3/etc/profile.d/conda.sh
+conda activate /projects/F202500007HPCVLABUPORTO/amachado.up/envs/negotiation
+```
+
+### Installed Python Packages (negotiation env)
+
+Core: `torch`, `transformers`, `accelerate`, `bitsandbytes`, `sentencepiece`, `protobuf`
+Plus: `openai`, `anthropic`, `python-dotenv`, `matplotlib`, `streamlit`, `huggingface_hub`
+
+### Pre-downloaded Models
+
+All model weights are cached in `$HF_HOME` (`/projects/.../amachado.up/huggingface/`).
+Models were downloaded from a `dev-x86` interactive session (which has internet access).
+GPU partitions have **no internet**, so `TRANSFORMERS_OFFLINE=1` and `HF_DATASETS_OFFLINE=1` are set in the server profile.
+
+| Size Group | Models |
+|------------|--------|
+| very_small | `meta-llama/Llama-3.1-8B-Instruct`, `google/gemma-3-4b-it`, `mistralai/Ministral-3-8B-Instruct-2512` (vlm), `Qwen/Qwen3.5-9B` |
+| small | `meta-llama/Llama-2-13b-chat-hf`, `google/gemma-3-12b-it`, `mistralai/Ministral-3-14B-Instruct-2512` (vlm), `qwen/Qwen3-14B` |
+| medium | `google/gemma-3-27b-it`, `mistralai/Mistral-Small-3.2-24B-Instruct-2506` (vlm, 8bit), `Qwen/Qwen3.5-27B` |
+| big | `meta-llama/Llama-3.3-70B-Instruct` (4bit), `Qwen/Qwen2.5-72B-Instruct` |
+
+To download additional models, get a dev-x86 session with internet:
+```bash
+srun --account=f202500007hpcvlabuportox --partition=dev-x86 --nodes=1 --time=4:00:00 --pty bash
+export HF_HOME=/projects/F202500007HPCVLABUPORTO/amachado.up/huggingface
+source /projects/F202500007HPCVLABUPORTO/amachado.up/miniconda3/etc/profile.d/conda.sh
+conda activate /projects/F202500007HPCVLABUPORTO/amachado.up/envs/negotiation
+python -c "from transformers import AutoTokenizer, AutoModelForCausalLM; AutoTokenizer.from_pretrained('model/name'); AutoModelForCausalLM.from_pretrained('model/name', torch_dtype='auto', device_map='cpu')"
+```
+
+### Running Experiments
+
+The server profile is at `slurm/servers/deucalion.sh`. All SLURM parameters can be overridden at launch time.
+
+```bash
+# From the repo root on Deucalion
+cd /projects/F202500007HPCVLABUPORTO/amachado.up/MultiAgent-Negotiation
+
+# Dry run (inspect commands without submitting)
+SERVER=deucalion DRY_RUN=1 bash slurm/launch.sh
+
+# Run all experiments with defaults (normal-a100-40, 2 GPUs, 48h)
+SERVER=deucalion bash slurm/launch.sh
+
+# Choose partition and resources
+SERVER=deucalion PARTITION=dev-a100-40 TIME=00:15:00 GPUS=1 EXPERIMENTS="buysell_section_one" SIZES="very_small" bash slurm/launch.sh
+
+# Experiments with their own model lists (e.g., COT ablation) — use SIZES=none
+SERVER=deucalion PARTITION=dev-a100-40 TIME=00:15:00 GPUS=1 EXPERIMENTS="buysell_cot" SIZES=none bash slurm/launch.sh
+
+# Monitor
+squeue --me
+tail -f logs/slurm/<job_name>_*.log
+```
+
+### 
+- **Home quota:** Never install anything in `/home/`. The 25 GB / 25,000 file limit fills up fast. Use symlinks for `.vscode-server`, `.cache`, etc.
+- **No internet on GPU partitions:** All models must be pre-downloaded. The profile sets `TRANSFORMERS_OFFLINE=1` automatically.
+- **GPU billing:** 1 GPU = 32 CPUs. Requesting >32 CPUs per GPU bills for extra GPU-hours.
+- **tmux for long sessions:** Start `tmux` on the login node before `srun` so model downloads survive SSH disconnects.
+- **VS Code Remote:** Works via Remote-SSH extension. Requires `~/.vscode-server` symlinked to `/projects/` to avoid home quota.
+- **HuggingFace auth:** Token is stored in `$HF_HOME/token`. If you get 401 errors, re-login: `python -c "from huggingface_hub import login; login()"` (from a dev-x86 session with internet).
+
+---
