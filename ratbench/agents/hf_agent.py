@@ -20,7 +20,10 @@ from ratbench.agents.agents import Agent
 import time
 from ratbench.constants import AGENT_ONE, AGENT_TWO
 
-_THINK_RE = re.compile(r"<think>.*?</think>\s*", flags=re.DOTALL)
+# Matches <think>…</think> blocks, or a leading block where <think> was
+# swallowed by skip_special_tokens (text starts mid-thought, ends with </think>).
+_THINK_FULL_RE = re.compile(r"<think>(.*?)</think>\s*", flags=re.DOTALL)
+_THINK_LEADING_RE = re.compile(r"^(.*?)</think>\s*", flags=re.DOTALL)
 
 # ---------------------------------------------------------------------------
 # Global model cache – the model is loaded into VRAM only ONCE per process,
@@ -186,11 +189,16 @@ class HuggingFaceAgent(Agent):
         new_tokens = output_ids[0][inputs.input_ids.shape[1] :]
         raw = self._tokenizer.decode(new_tokens, skip_special_tokens=True)
 
-        # Strip model-native thinking tags (e.g. Qwen3.5 <think>...</think>)
-        think_match = _THINK_RE.search(raw)
+        # Strip model-native thinking tags (e.g. Qwen3.5 <think>...</think>).
+        # Two cases: full <think>…</think> block, or a leading block where
+        # <think> was consumed by skip_special_tokens but </think> survived.
+        think_match = _THINK_FULL_RE.search(raw)
+        if not think_match:
+            think_match = _THINK_LEADING_RE.match(raw)
+
         if think_match:
-            self._last_thinking_content = think_match.group(0)
-            raw = raw[:think_match.start()] + raw[think_match.end():]
+            self._last_thinking_content = think_match.group(1).strip()
+            raw = (raw[:think_match.start()] + raw[think_match.end():]).lstrip()
         else:
             self._last_thinking_content = None
 

@@ -1,8 +1,6 @@
-
 import os
 import copy
 from ratbench.agents import ChatGPTAgent, ClaudeAgent
-
 
 def normalize_model(entry):
     """Normalize a YAML model entry to ``{"id": str, "quantization": str|None}``.
