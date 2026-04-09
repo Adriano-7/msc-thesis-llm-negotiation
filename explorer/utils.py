@@ -120,21 +120,6 @@ def load_states_from_dir(log_dir: str, completed_only: bool = True):
     return game_states
 
 
-import re
-
-_THINK_RE = re.compile(r"<think>(.*?)</think>\s*", flags=re.DOTALL)
-
-
-def extract_thinking(text):
-    """Extract <think> content from text, return (thinking, cleaned_text)."""
-    match = _THINK_RE.search(text)
-    if match:
-        thinking = match.group(1).strip()
-        cleaned = text[:match.start()] + text[match.end():]
-        return thinking, cleaned.strip()
-    return None, text
-
-
 def text_formatting(text, system_promt=False):
     if not system_promt:
         for c in ALL_CONSTANTS:
