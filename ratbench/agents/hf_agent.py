@@ -187,22 +187,56 @@ class HuggingFaceAgent(Agent):
         output_ids = self._model.generate(**inputs, **gen_kwargs)
 
         new_tokens = output_ids[0][inputs.input_ids.shape[1] :]
-        raw = self._tokenizer.decode(new_tokens, skip_special_tokens=True)
 
-        # Strip model-native thinking tags (e.g. Qwen3.5 <think>...</think>).
-        # Two cases: full <think>…</think> block, or a leading block where
-        # <think> was consumed by skip_special_tokens but </think> survived.
+        # --- Extract thinking content ----------------------------------
+        # Models like Qwen3.5 use special tokens for <think>/</think>.
+        # skip_special_tokens=True strips BOTH, leaving thinking content
+        # mixed into the response with no markers.  We must split at the
+        # token level first, before decoding.
+        thinking, response = self._split_thinking(new_tokens)
+        self._last_thinking_content = thinking
+        return response
+
+    def _split_thinking(self, tokens):
+        """Separate thinking content from the response.
+
+        Returns (thinking_text, response_text).  thinking_text is None when
+        the model did not produce a thinking block.
+
+        Strategy:
+        1. Look for the </think> *token* in the output token ids and split
+           there.  This is the only reliable method for models like Qwen3.5
+           where <think> and </think> are special tokens that
+           skip_special_tokens=True silently removes.
+        2. Fall back to regex on the decoded text for models that emit
+           <think>...</think> as regular text tokens.
+        """
+        # --- Token-level split (primary) --------------------------------
+        think_end_id = self._tokenizer.convert_tokens_to_ids("</think>")
+        unk_id = getattr(self._tokenizer, "unk_token_id", None)
+        if think_end_id is not None and think_end_id != unk_id:
+            mask = (tokens == think_end_id)
+            if mask.any():
+                idx = mask.nonzero(as_tuple=True)[0][0].item()
+                thinking = self._tokenizer.decode(
+                    tokens[:idx], skip_special_tokens=True
+                ).strip()
+                response = self._tokenizer.decode(
+                    tokens[idx + 1 :], skip_special_tokens=True
+                ).strip()
+                return thinking or None, response
+
+        # --- Regex fallback (for models using plain-text tags) ----------
+        raw = self._tokenizer.decode(tokens, skip_special_tokens=True)
         think_match = _THINK_FULL_RE.search(raw)
         if not think_match:
             think_match = _THINK_LEADING_RE.match(raw)
-
         if think_match:
-            self._last_thinking_content = think_match.group(1).strip()
-            raw = (raw[:think_match.start()] + raw[think_match.end():]).lstrip()
-        else:
-            self._last_thinking_content = None
+            thinking = think_match.group(1).strip()
+            response = (raw[: think_match.start()] + raw[think_match.end() :]).lstrip()
+            return thinking or None, response
 
-        return raw
+        return None, raw
 
     def update_conversation_tracking(self, role: str, message: str):
         entry = {"role": role, "content": message}

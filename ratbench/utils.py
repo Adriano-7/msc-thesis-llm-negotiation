@@ -1,6 +1,5 @@
 import os
 import copy
-import re
 from ratbench.agents import ChatGPTAgent, ClaudeAgent
 
 def normalize_model(entry):
@@ -62,11 +61,6 @@ def factory_agent(name, agent_name, **kwargs):
         )
 
 def get_tag_contents(response, interest_tag):
-    if "</think>" in response:
-        response = response.split("</think>", 1)[-1].lstrip()
-    else:
-        response = re.sub(r"<think>.*?</think>\s*", "", response, flags=re.DOTALL)
-
     start_index, end_index, length = get_tag_indices(response, interest_tag)
     if start_index == -1 or end_index == -1:
         raise ValueError(
