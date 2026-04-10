@@ -120,8 +120,8 @@ class HuggingFaceAgent(Agent):
         self._last_thinking_content = None
 
         # Auto-increase token budget for thinking mode
-        if self.enable_thinking and self.max_new_tokens <= 1024:
-            self.max_new_tokens = 4096
+        if self.enable_thinking and self.max_new_tokens <= 4096:
+            self.max_new_tokens = 16384
 
         # Model is loaded lazily on first chat() call
         self.model = model_id
@@ -188,12 +188,14 @@ class HuggingFaceAgent(Agent):
 
         new_tokens = output_ids[0][inputs.input_ids.shape[1] :]
 
-        # --- Extract thinking content ----------------------------------
-        # Models like Qwen3.5 use special tokens for <think>/</think>.
-        # skip_special_tokens=True strips BOTH, leaving thinking content
-        # mixed into the response with no markers.  We must split at the
-        # token level first, before decoding.
+        # Extract thinking content 
         thinking, response = self._split_thinking(new_tokens)
+        if thinking is None and self.enable_thinking:
+            raise RuntimeError(
+                f"Thinking truncated: no </think> found in {len(new_tokens)} tokens "
+                f"(max_new_tokens={self.max_new_tokens}). "
+                f"Increase max_new_tokens to give the model room to finish reasoning."
+            )
         self._last_thinking_content = thinking
         return response
 
