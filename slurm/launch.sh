@@ -16,6 +16,9 @@
 # Select specific experiments/sizes:
 #   SERVER=deucalion EXPERIMENTS="buysell_section_one" SIZES="very_small" bash slurm/launch.sh
 #
+# Pin to a specific node:
+#   SERVER=mia NODELIST=srv02 bash slurm/launch.sh
+#
 # Dry run (print commands without submitting):
 #   SERVER=deucalion DRY_RUN=1 bash slurm/launch.sh
 # ============================================================
@@ -60,22 +63,23 @@ SBATCH_FLAGS=(
     $SLURM_GPU_DIRECTIVE
 )
 
-[ -n "${SLURM_QOS:-}" ]     && SBATCH_FLAGS+=(--qos="$SLURM_QOS")
-[ -n "${SLURM_ACCOUNT:-}" ] && SBATCH_FLAGS+=(--account="$SLURM_ACCOUNT")
-[ -n "${SLURM_MEM:-}" ]     && SBATCH_FLAGS+=(--mem="$SLURM_MEM")
+[ -n "${SLURM_QOS:-}" ]      && SBATCH_FLAGS+=(--qos="$SLURM_QOS")
+[ -n "${SLURM_ACCOUNT:-}" ]  && SBATCH_FLAGS+=(--account="$SLURM_ACCOUNT")
+[ -n "${SLURM_MEM:-}" ]      && SBATCH_FLAGS+=(--mem="$SLURM_MEM")
+[ -n "${SLURM_NODELIST:-}" ] && SBATCH_FLAGS+=(--nodelist="$SLURM_NODELIST")
 
 # ── Experiments and sizes ────────────────────────────────────
 DEFAULT_SIZES=("none")
 DEFAULT_EXPERIMENTS=(
     # Section 1: Baselines
-    "buysell_section_one"
-    "trading_section_one"
-    "ultimatum_section_one"
+    #"buysell_section_one"
+    #"trading_section_one"
+    #"ultimatum_section_one"
 
     # Section 1: Retry Ablations
-    "buysell_section_one_retry3"
-    "trading_section_one_retry3"
-    "ultimatum_section_one_retry3"
+    #"buysell_section_one_retry3"
+    #"trading_section_one_retry3"
+    #"ultimatum_section_one_retry3"
 
     # Section 2: Personas / Social Behavior
     "buysell_section_two_personas"
@@ -118,6 +122,7 @@ echo "Memory     : ${SLURM_MEM:-<default>}"
 echo "Time limit : $SLURM_TIME"
 echo "QoS        : ${SLURM_QOS:-<none>}"
 echo "Account    : ${SLURM_ACCOUNT:-<none>}"
+echo "Nodelist   : ${SLURM_NODELIST:-<any>}"
 echo "Sizes      : ${SIZE_ARRAY[*]}"
 echo "Experiments: ${#EXP_ARRAY[@]}"
 echo "Total jobs : $TOTAL"
