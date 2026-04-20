@@ -903,8 +903,8 @@ SERVER=deucalion bash slurm/launch.sh
 # Choose partition and resources
 SERVER=deucalion PARTITION=dev-a100-40 TIME=00:15:00 GPUS=1 EXPERIMENTS="buysell_section_one" SIZES="very_small" bash slurm/launch.sh
 
-# Experiments with their own model lists (e.g., COT ablation) — use SIZES=none
-SERVER=deucalion PARTITION=dev-a100-40 TIME=00:15:00 GPUS=1 EXPERIMENTS="buysell_cot" SIZES=none bash slurm/launch.sh
+# Experiments with their own model lists  — use SIZES=none
+SERVER=deucalion PARTITION=dev-a100-40 TIME=00:15:00 GPUS=1 EXPERIMENTS="buysell_section_one" SIZES=none bash slurm/launch.sh
 
 # Monitor
 squeue --me
