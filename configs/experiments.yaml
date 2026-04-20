@@ -52,20 +52,6 @@ _shared:
     - id: "mistralai/Mixtral-8x7B-Instruct-v0.1"
       quantization: 4bit
 
-  models_cot_very_small: &models_cot_very_small
-    - id: "Qwen/Qwen3.5-9B"
-      enable_thinking: true
-    - id: "Qwen/Qwen3.5-9B"
-      enable_thinking: false
-
-  models_cot_medium: &models_cot_medium
-    - id: "Qwen/Qwen3.5-27B"
-      enable_thinking: true
-      quantization: 8bit
-    - id: "Qwen/Qwen3.5-27B"
-      enable_thinking: false
-      quantization: 8bit
-
 # ==============================================================
 #  SECTION ONE — Baseline experiments (no personas)
 # ==============================================================
@@ -336,15 +322,42 @@ ultimatum_section_two_personas_retry3:
   models: very_small
 
 # ==============================================================
-#  COT ABLATION — Thinking vs Non-Thinking (Qwen3.5)
-#  Self-play: each variant plays against itself so we can
-#  isolate the effect of chain-of-thought reasoning.
+#  SELF-REFINE v1 — Minimal test of Self-Refine on negotiation.
+#
+#  Design: symmetric self-play, medium open-weight models, 10 runs.
+#  Three arms per game, all using the same game parameters:
+#    - baseline     : plain one-shot generation
+#    - self_refine  : Self-Refine loop, max_refine_iters=2
+#
+#  Per-player strategy via {p1_strategy, p2_strategy} ∈
+#  {default, self_refine}.  Setting them differently
+#  enables future asymmetric ablations.
 # ==============================================================
 
-buysell_cot:
-  section: cot_ablation
+trading_self_refine_v1:
+  section: self_refine
+  game: trading
+  num_runs: 10
+  iterations: 8
+  cross_play: false
+  max_retries: 0
+  setups:
+    - p1_resources: { "X": 25, "Y": 5 }
+      p2_resources: { "X": 5, "Y": 25 }
+      p1_strategy: "default"
+      p2_strategy: "default"
+      behaviour_name: "baseline"
+    - p1_resources: { "X": 25, "Y": 5 }
+      p2_resources: { "X": 5, "Y": 25 }
+      p1_strategy: "self_refine"
+      p2_strategy: "self_refine"
+      behaviour_name: "self_refine"
+  models: medium
+
+buysell_self_refine_v1:
+  section: self_refine
   game: buysell
-  num_runs: 3
+  num_runs: 10
   iterations: 8
   cross_play: false
   max_retries: 0
@@ -352,67 +365,31 @@ buysell_cot:
     - seller_val: 40
       buyer_val: 60
       money: 100
-  models: cot_medium
-
-trading_cot:
-  section: cot_ablation
-  game: trading
-  num_runs: 30
-  iterations: 8
-  cross_play: false
-  max_retries: 0
-  setups:
-    - p1_resources: { "X": 25, "Y": 5 }
-      p2_resources: { "X": 5, "Y": 25 }
-  models: cot_medium
-
-ultimatum_cot:
-  section: cot_ablation
-  game: ultimatum
-  num_runs: 30
-  iterations: 8
-  cross_play: false
-  max_retries: 0
-  setups:
-    - dollars: 100
-  models: cot_medium
-
-# ==============================================================
-#  COT ABLATION — Parse error self-correction (max_retries: 3)
-# ==============================================================
-
-buysell_cot_retry3:
-  section: cot_ablation
-  game: buysell
-  num_runs: 3
-  iterations: 8
-  cross_play: false
-  max_retries: 3
-  setups:
+      p1_strategy: "default"
+      p2_strategy: "default"
+      behaviour_name: "baseline"
     - seller_val: 40
       buyer_val: 60
       money: 100
-  models: cot_very_small
+      p1_strategy: "self_refine"
+      p2_strategy: "self_refine"
+      behaviour_name: "self_refine"
+  models: medium
 
-trading_cot_retry3:
-  section: cot_ablation
-  game: trading
-  num_runs: 30
-  iterations: 8
-  cross_play: false
-  max_retries: 3
-  setups:
-    - p1_resources: { "X": 25, "Y": 5 }
-      p2_resources: { "X": 5, "Y": 25 }
-  models: cot_very_small
-
-ultimatum_cot_retry3:
-  section: cot_ablation
+ultimatum_self_refine_v1:
+  section: self_refine
   game: ultimatum
-  num_runs: 30
+  num_runs: 10
   iterations: 8
   cross_play: false
-  max_retries: 3
+  max_retries: 0
   setups:
     - dollars: 100
-  models: cot_very_small
+      p1_strategy: "default"
+      p2_strategy: "default"
+      behaviour_name: "baseline"
+    - dollars: 100
+      p1_strategy: "self_refine"
+      p2_strategy: "self_refine"
+      behaviour_name: "self_refine"
+  models: medium

@@ -17,6 +17,7 @@ import re
 import torch
 from transformers import AutoModelForCausalLM, AutoModelForImageTextToText,  AutoTokenizer, BitsAndBytesConfig
 from ratbench.agents.agents import Agent
+from ratbench.agents.agent_behaviours import SelfCheckingAgent, SelfRefineAgent
 import time
 from ratbench.constants import AGENT_ONE, AGENT_TWO
 
@@ -264,3 +265,11 @@ class HuggingFaceAgent(Agent):
             else:
                 setattr(result, k, deepcopy(v, memo))
         return result
+
+
+class SelfCheckingHuggingFaceAgent(HuggingFaceAgent, SelfCheckingAgent):
+    pass
+
+
+class SelfRefineHuggingFaceAgent(HuggingFaceAgent, SelfRefineAgent):
+    pass

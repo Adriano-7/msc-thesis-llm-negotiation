@@ -17,27 +17,21 @@ def normalize_model(entry):
         "enable_thinking": entry.get("enable_thinking"),
     }
 
-# Lazy import to avoid loading torch when not needed
-_HF_AGENT = None
-
-def _get_hf_agent_class():
-    global _HF_AGENT
-    if _HF_AGENT is None:
-        from ratbench.agents.hf_agent import HuggingFaceAgent
-        _HF_AGENT = HuggingFaceAgent
-    return _HF_AGENT
-
-
-def factory_agent(name, agent_name, **kwargs):
+def factory_agent(name, agent_name, strategy="default", **kwargs):
     """
     Factory to create agents by short name or HuggingFace model_id.
 
     Short names (backwards compatible):
         "gpt-4", "gpt-3.5", "claude-2", "claude-2.1"
 
-    HuggingFace models (new):
+    HuggingFace models:
         Any string containing "/" is treated as a HF model_id:
         "Qwen/Qwen2.5-7B-Instruct", "deepseek-ai/DeepSeek-V2-Lite-Chat", etc.
+
+    strategy (HF only):
+        "default"     — plain one-shot generation
+        "self_check"  — one extra double-check pass (SelfCheckingAgent)
+        "self_refine" — Self-Refine feedback/refine loop (Madaan et al. 2023)
     """
     # ── Legacy API-based agents ──
     if name == "gpt-4":
@@ -51,8 +45,24 @@ def factory_agent(name, agent_name, **kwargs):
 
     # ── HuggingFace open-weight models ──
     elif "/" in name:
-        HFAgent = _get_hf_agent_class()
-        return HFAgent(agent_name=agent_name, model_id=name, **kwargs)
+        # Local imports keep torch out of the import graph until needed.
+        from ratbench.agents.hf_agent import (
+            HuggingFaceAgent,
+            SelfCheckingHuggingFaceAgent,
+            SelfRefineHuggingFaceAgent,
+        )
+        strategy_to_cls = {
+            "default": HuggingFaceAgent,
+            "self_check": SelfCheckingHuggingFaceAgent,
+            "self_refine": SelfRefineHuggingFaceAgent,
+        }
+        if strategy not in strategy_to_cls:
+            raise ValueError(
+                f"Unknown strategy: {strategy!r}. "
+                f"Expected one of: {list(strategy_to_cls)}"
+            )
+        cls = strategy_to_cls[strategy]
+        return cls(agent_name=agent_name, model_id=name, **kwargs)
 
     else:
         raise ValueError(
