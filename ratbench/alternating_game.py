@@ -74,6 +74,15 @@ class AlternatingGame(Game):
             print("response : {}".format(response))
             raise e
 
+        active = players[self.turn]
+        trace = getattr(active, "_last_refine_trace", None)
+        if trace:
+            active._last_refine_trace = None
+            Path(self.log_path).mkdir(parents=True, exist_ok=True)
+            fname = f"refine_trace_iter_{self.current_iteration}_turn_{self.turn}.json"
+            with open(os.path.join(self.log_path, fname), "w") as f:
+                json.dump(trace, f, indent=2)
+
         datum = dict(
             current_iteration=self.current_iteration,
             turn=self.turn,

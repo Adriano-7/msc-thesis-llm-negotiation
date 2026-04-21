@@ -73,6 +73,8 @@ class SelfRefineAgent(Agent, ABC):
     def think(self):
         saved = deepcopy(self.conversation)
         y = super().think()
+        initial_draft = y
+        iterations = []
         for _ in range(self.max_refine_iters):
             self.update_conversation_tracking("user", self.feedback_prompt)
             fb = self.chat()
@@ -80,6 +82,12 @@ class SelfRefineAgent(Agent, ABC):
             self.update_conversation_tracking("user", self.refine_prompt)
             y = self.chat()
             self.update_conversation_tracking("assistant", y)
+            iterations.append({"feedback": fb, "refined": y})
+        self._last_refine_trace = {
+            "initial_draft": initial_draft,
+            "iterations": iterations,
+            "final": y,
+        }
         self.conversation = saved
         self.update_conversation_tracking("assistant", y)
         return y
