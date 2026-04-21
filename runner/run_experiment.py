@@ -105,8 +105,8 @@ def run_buysell(model_p1, model_p2, setup, num_runs, iterations, log_base, max_r
     for i in range(num_runs):
         try:
             print(f"[buysell] Run {i+1}/{num_runs} | {pair_tag} | {tag}")
-            a1 = factory_agent(model_p1["id"], agent_name=AGENT_ONE, strategy=p1_strategy, quantization=model_p1["quantization"], model_type=model_p1["model_type"], enable_thinking=model_p1["enable_thinking"])
-            a2 = factory_agent(model_p2["id"], agent_name=AGENT_TWO, strategy=p2_strategy, quantization=model_p2["quantization"], model_type=model_p2["model_type"], enable_thinking=model_p2["enable_thinking"])
+            a1 = factory_agent(model_p1["id"], agent_name=AGENT_ONE, strategy=p1_strategy, quantization=model_p1["quantization"], model_type=model_p1["model_type"], enable_thinking=model_p1["enable_thinking"], rate_limit_delay=model_p1.get("rate_limit_delay"))
+            a2 = factory_agent(model_p2["id"], agent_name=AGENT_TWO, strategy=p2_strategy, quantization=model_p2["quantization"], model_type=model_p2["model_type"], enable_thinking=model_p2["enable_thinking"], rate_limit_delay=model_p2.get("rate_limit_delay"))
 
             game = BuySellGame(
                 players=[a1, a2],
@@ -161,8 +161,8 @@ def run_trading(model_p1, model_p2, setup, num_runs, iterations, log_base, max_r
             print(f"[trading] Run {i+1}/{num_runs} | {log_tag}")
             r1 = Resources(p1_res)
             r2 = Resources(p2_res)
-            a1 = factory_agent(model_p1["id"], agent_name=AGENT_ONE, strategy=p1_strategy, quantization=model_p1["quantization"], model_type=model_p1["model_type"], enable_thinking=model_p1["enable_thinking"])
-            a2 = factory_agent(model_p2["id"], agent_name=AGENT_TWO, strategy=p2_strategy, quantization=model_p2["quantization"], model_type=model_p2["model_type"], enable_thinking=model_p2["enable_thinking"])
+            a1 = factory_agent(model_p1["id"], agent_name=AGENT_ONE, strategy=p1_strategy, quantization=model_p1["quantization"], model_type=model_p1["model_type"], enable_thinking=model_p1["enable_thinking"], rate_limit_delay=model_p1.get("rate_limit_delay"))
+            a2 = factory_agent(model_p2["id"], agent_name=AGENT_TWO, strategy=p2_strategy, quantization=model_p2["quantization"], model_type=model_p2["model_type"], enable_thinking=model_p2["enable_thinking"], rate_limit_delay=model_p2.get("rate_limit_delay"))
 
             game = TradingGame(
                 players=[a1, a2],
@@ -208,8 +208,8 @@ def run_ultimatum(model_p1, model_p2, setup, num_runs, iterations, log_base, max
     for i in range(num_runs):
         try:
             print(f"[ultimatum] Run {i+1}/{num_runs} | {log_tag}")
-            a1 = factory_agent(model_p1["id"], agent_name=AGENT_ONE, strategy=p1_strategy, quantization=model_p1["quantization"], model_type=model_p1["model_type"], enable_thinking=model_p1["enable_thinking"])
-            a2 = factory_agent(model_p2["id"], agent_name=AGENT_TWO, strategy=p2_strategy, quantization=model_p2["quantization"], model_type=model_p2["model_type"], enable_thinking=model_p2["enable_thinking"])
+            a1 = factory_agent(model_p1["id"], agent_name=AGENT_ONE, strategy=p1_strategy, quantization=model_p1["quantization"], model_type=model_p1["model_type"], enable_thinking=model_p1["enable_thinking"], rate_limit_delay=model_p1.get("rate_limit_delay"))
+            a2 = factory_agent(model_p2["id"], agent_name=AGENT_TWO, strategy=p2_strategy, quantization=model_p2["quantization"], model_type=model_p2["model_type"], enable_thinking=model_p2["enable_thinking"], rate_limit_delay=model_p2.get("rate_limit_delay"))
 
             game = MultiTurnUltimatumGame(
                 players=[a1, a2],

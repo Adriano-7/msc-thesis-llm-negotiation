@@ -191,7 +191,7 @@ with tab_outcomes:
             st.pyplot(fig, use_container_width=True)
             plt.close(fig)
 
-    st.subheader("Payoff for player 1 (self-play, so symmetric in expectation)")
+    st.subheader("Payoff for player 1 (self-play)")
     payoff_df = df_size[df_size["completed"] & df_size["outcome_1"].notna()]
     ylabel_map = {
         "trading": "Resource delta (P1)",
@@ -222,7 +222,7 @@ with tab_outcomes:
             st.pyplot(fig, use_container_width=True)
             plt.close(fig)
 
-    st.subheader("Turns to completion (lower = faster agreement)")
+    st.subheader("Turns to completion")
     turns_df = df_size[df_size["completed"]]
     game_cols = st.columns(len(turns_df["game"].unique()))
     for col, game in zip(game_cols, sorted(turns_df["game"].unique())):

@@ -13,7 +13,12 @@ try:
 except ImportError:
     LLama2ChatAgent = None
 
-try:                                       
+try:
     from .hf_agent import HuggingFaceAgent
 except ImportError:
     HuggingFaceAgent = None
+
+try:
+    from .iaedu_agent import IaEduAgent
+except ImportError:
+    IaEduAgent = None

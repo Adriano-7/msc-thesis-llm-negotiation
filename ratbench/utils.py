@@ -9,12 +9,19 @@ def normalize_model(entry):
     (``{"id": "org/model", "quantization": "4bit"}``).
     """
     if isinstance(entry, str):
-        return {"id": entry, "quantization": None, "model_type": "llm", "enable_thinking": None}
+        return {
+            "id": entry,
+            "quantization": None,
+            "model_type": "llm",
+            "enable_thinking": None,
+            "rate_limit_delay": None,
+        }
     return {
         "id": entry["id"],
         "quantization": entry.get("quantization"),
         "model_type": entry.get("model_type", "llm"),
         "enable_thinking": entry.get("enable_thinking"),
+        "rate_limit_delay": entry.get("rate_limit_delay"),
     }
 
 def factory_agent(name, agent_name, strategy="default", **kwargs):
@@ -42,6 +49,28 @@ def factory_agent(name, agent_name, strategy="default", **kwargs):
         return ClaudeAgent(agent_name=agent_name, model="claude-2")
     elif name == "claude-2.1":
         return ClaudeAgent(agent_name=agent_name, model="claude-2.1")
+
+    # ── Hosted iaedu chatbot API ──
+    elif name == "gpt-4o-iaedu":
+        from ratbench.agents.iaedu_agent import (
+            IaEduAgent,
+            SelfCheckingIaEduAgent,
+            SelfRefineIaEduAgent,
+        )
+        strategy_to_cls = {
+            "default": IaEduAgent,
+            "self_check": SelfCheckingIaEduAgent,
+            "self_refine": SelfRefineIaEduAgent,
+        }
+        if strategy not in strategy_to_cls:
+            raise ValueError(
+                f"Unknown strategy: {strategy!r}. "
+                f"Expected one of: {list(strategy_to_cls)}"
+            )
+        # Drop HF-only kwargs the runner forwards unconditionally.
+        hf_only = {"quantization", "model_type", "enable_thinking"}
+        clean_kwargs = {k: v for k, v in kwargs.items() if k not in hf_only}
+        return strategy_to_cls[strategy](agent_name=agent_name, **clean_kwargs)
 
     # ── HuggingFace open-weight models ──
     elif "/" in name:
