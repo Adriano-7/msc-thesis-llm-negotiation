@@ -24,21 +24,39 @@ st.set_page_config(
     layout="wide",
 )
 
+BASE_GAMES = ("buysell", "trading", "ultimatum")
+
+SECTION_TO_STRATEGY = {
+    "section_one": "baseline",
+    "section_two": "personas",
+    "self_refine": "self_refine",
+}
+
+
+def extract_base_game(game_raw: str) -> str:
+    for g in BASE_GAMES:
+        if game_raw.startswith(g):
+            return g.title()
+    return game_raw.replace("_", " ").title()
+
+
 @st.cache_data(ttl=3600)
 def load_log_overview():
     data = []
     logs_path = Path(LOGS_ROOT)
-    
+
     if not logs_path.exists():
         return pd.DataFrame()
 
-    # Fast scan of directories
     for root, dirs, files in os.walk(logs_path):
         if "game_state.json" in files:
             rel_path = Path(root).relative_to(logs_path)
             parts = rel_path.parts
-            
+            if parts and parts[0] == "cot_ablation":
+                continue
+
             section = "Unknown"
+            strategy = "Unknown"
             game = "Unknown"
             retry = "Unknown"
             size = "Unknown"
@@ -47,7 +65,7 @@ def load_log_overview():
             if len(parts) >= 2:
                 section_raw = parts[0]
                 game_raw = parts[1]
-                
+
                 if section_raw == "section_one" and len(parts) >= 5:
                     retry = parts[2]
                     size = parts[3]
@@ -56,21 +74,26 @@ def load_log_overview():
                     size = parts[2]
                     pairing = parts[3]
                     retry = "N/A"
-                
-                # Clean strings for display
+                elif section_raw == "self_refine" and len(parts) >= 4:
+                    size = parts[2]
+                    pairing = parts[3]
+                    retry = "N/A"
+
                 section = section_raw.replace("_", " ").title()
-                game = game_raw.replace("_section_one", "").replace("_section_two", "").replace("_personas", "").replace("_", " ").title()
+                strategy = SECTION_TO_STRATEGY.get(section_raw, section_raw)
+                game = extract_base_game(game_raw)
                 size = size.replace("_", " ").title()
-                
+
             data.append({
                 "Section": section,
+                "Strategy": strategy,
                 "Game": game,
                 "Retry Setting": retry,
                 "Model Size": size,
                 "Pairing": pairing,
                 "Path": str(rel_path)
             })
-                
+
     return pd.DataFrame(data)
 
 with st.spinner("Scanning experiment logs..."):
@@ -85,7 +108,7 @@ else:
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total Games Played", f"{len(df):,}")
     col2.metric("Sections", df["Section"].nunique())
-    col3.metric("Game Types", df["Game"].nunique())
+    col3.metric("Games", df["Game"].nunique())
     col4.metric("Model Sizes Evaluated", df["Model Size"].nunique())
     
     st.markdown("---")
@@ -94,10 +117,19 @@ else:
     
     with col_left:
         st.subheader("Games Played per Type")
-        df_game_counts = df["Game"].value_counts().reset_index()
-        df_game_counts.columns = ["Game", "Count"]
-        df_game_counts.set_index("Game", inplace=True)
-        st.bar_chart(df_game_counts)
+        strategy_order = ["baseline", "personas", "self_refine"]
+        df_game_counts = (
+            df.groupby(["Game", "Strategy"]).size().reset_index(name="Count")
+        )
+        present = [s for s in strategy_order if s in df_game_counts["Strategy"].unique()]
+        present += [s for s in df_game_counts["Strategy"].unique() if s not in present]
+        pivot = (
+            df_game_counts.pivot(index="Game", columns="Strategy", values="Count")
+            .reindex(columns=present)
+            .fillna(0)
+            .astype(int)
+        )
+        st.bar_chart(pivot)
         
     with col_right:
         st.subheader("Distribution by Model Size")
