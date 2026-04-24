@@ -1,6 +1,7 @@
 import sys
 import os
 import json
+import re
 import warnings
 from pathlib import Path
 
@@ -39,9 +40,28 @@ GAMES = {
 STRATEGIES = ["baseline", "self_check", "self_refine"]
 STRATEGY_COLORS = {"baseline": "#7f7f7f", "self_check": "#1f77b4", "self_refine": "#d62728"}
 
+STRATEGY_SUFFIX_RE = re.compile(r"_([a-z_]+)P1_([a-z_]+)P2$")
+
 
 def resource_total(res: dict) -> float:
     return sum(res["_value"].values())
+
+
+def _synth_strategy(p1: str, p2: str) -> str:
+    """Map a (p1, p2) strategy pair to a single label used by existing charts."""
+    if p1 == p2 == "default":
+        return "baseline"
+    if p1 == p2:
+        return p1
+    return f"{p1}P1_{p2}P2"
+
+
+def _strip_strategy_suffix(piece: str) -> tuple[str, str | None, str | None]:
+    """Return (piece_without_suffix, p1_strategy, p2_strategy)."""
+    m = STRATEGY_SUFFIX_RE.search(piece)
+    if m:
+        return piece[: m.start()], m.group(1), m.group(2)
+    return piece, None, None
 
 
 def parse_run_path(game_state_path: Path) -> dict:
@@ -49,21 +69,27 @@ def parse_run_path(game_state_path: Path) -> dict:
     idx = parts.index("self_refine")
     experiment = parts[idx + 1]
     size = parts[idx + 2]
-    strategy = None
+
+    p1_strategy, p2_strategy = None, None
     for piece in reversed(parts[idx + 3 : -1]):
-        for s in STRATEGIES:
-            if piece.endswith("_" + s) or piece == s:
-                strategy = s
-                break
-        if strategy:
+        _, p1, p2 = _strip_strategy_suffix(piece)
+        if p1:
+            p1_strategy, p2_strategy = p1, p2
             break
+
+    strategy = _synth_strategy(p1_strategy, p2_strategy) if p1_strategy else None
+
     run_id = parts[-2]
-    pair_raw = parts[idx + 3]
-    pair = pair_raw
-    for s in STRATEGIES:
-        if pair.endswith("_" + s):
-            pair = pair[: -(len(s) + 1)]
-    return dict(experiment=experiment, size=size, pair=pair, strategy=strategy, run_id=run_id)
+    pair, _, _ = _strip_strategy_suffix(parts[idx + 3])
+    return dict(
+        experiment=experiment,
+        size=size,
+        pair=pair,
+        strategy=strategy,
+        p1_strategy=p1_strategy,
+        p2_strategy=p2_strategy,
+        run_id=run_id,
+    )
 
 
 def extract_outcome(game_prefix: str, data: dict) -> dict:

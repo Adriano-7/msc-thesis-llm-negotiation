@@ -64,6 +64,21 @@ def _safe_name(model) -> str:
     return model.split("/")[-1].lower()
 
 
+def _strategy_tag(setup: dict) -> str | None:
+    """Return a per-player strategy tag when the setup specifies strategies.
+
+    Format: ``{p1_strategy}P1_{p2_strategy}P2`` — encodes both strategies and
+    their player assignment, so asymmetric (cross-strategy) runs get unique
+    log directories. Returns None when no strategy fields are present, in
+    which case the caller should fall back to ``behaviour_name``.
+    """
+    if "p1_strategy" not in setup and "p2_strategy" not in setup:
+        return None
+    p1 = setup.get("p1_strategy", "default")
+    p2 = setup.get("p2_strategy", "default")
+    return f"{p1}P1_{p2}P2"
+
+
 def _build_pairs(models: list, cross_play) -> list:
     """
     Build the list of (model_p1, model_p2) pairs to run.
@@ -96,8 +111,9 @@ def run_buysell(model_p1, model_p2, setup, num_runs, iterations, log_base, max_r
     p2_strategy = setup.get("p2_strategy", "default")
 
     tag = f"seller{seller_val}_buyer{buyer_val}"
-    if behaviour_name:
-        tag = f"{tag}_{behaviour_name}"
+    suffix = _strategy_tag(setup) or behaviour_name
+    if suffix:
+        tag = f"{tag}_{suffix}"
     pair_tag = f"{_safe_name(model_p1)}_vs_{_safe_name(model_p2)}"
     log_dir = os.path.join(log_base, pair_tag, tag)
 
@@ -150,9 +166,8 @@ def run_trading(model_p1, model_p2, setup, num_runs, iterations, log_base, max_r
     p2_strategy = setup.get("p2_strategy", "default")
 
     pair_tag = f"{_safe_name(model_p1)}_vs_{_safe_name(model_p2)}"
-    log_tag = pair_tag
-    if behaviour_name:
-        log_tag = f"{pair_tag}_{behaviour_name}"
+    suffix = _strategy_tag(setup) or behaviour_name
+    log_tag = f"{pair_tag}_{suffix}" if suffix else pair_tag
     log_dir = os.path.join(log_base, log_tag)
 
     success, errors = 0, 0
@@ -199,9 +214,8 @@ def run_ultimatum(model_p1, model_p2, setup, num_runs, iterations, log_base, max
     p2_strategy = setup.get("p2_strategy", "default")
 
     pair_tag = f"{_safe_name(model_p1)}_vs_{_safe_name(model_p2)}"
-    log_tag = pair_tag
-    if behaviour_name:
-        log_tag = f"{pair_tag}_{behaviour_name}"
+    suffix = _strategy_tag(setup) or behaviour_name
+    log_tag = f"{pair_tag}_{suffix}" if suffix else pair_tag
     log_dir = os.path.join(log_base, log_tag)
 
     success, errors = 0, 0

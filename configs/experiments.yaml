@@ -326,16 +326,19 @@ ultimatum_section_two_personas_retry3:
   models: very_small
 
 # ==============================================================
-#  SELF-REFINE v1 — Minimal test of Self-Refine on negotiation.
+#  SELF-REFINE v1 — Self-Refine on negotiation, with cross-play.
 #
-#  Design: symmetric self-play, medium open-weight models, 10 runs.
-#  Three arms per game, all using the same game parameters:
-#    - baseline     : plain one-shot generation
-#    - self_refine  : Self-Refine loop, max_refine_iters=2
+#  Design: model self-play (each model vs itself), medium open-weight
+#  models. Four strategy conditions per game (same game parameters):
+#    - default    × default     : plain one-shot vs plain one-shot
+#    - self_refine × self_refine : Self-Refine loop both sides
+#    - default    × self_refine : cross-play (P1 plain, P2 refines)
+#    - self_refine × default    : cross-play (P1 refines, P2 plain)
 #
 #  Per-player strategy via {p1_strategy, p2_strategy} ∈
-#  {default, self_refine}.  Setting them differently
-#  enables future asymmetric ablations.
+#  {default, self_refine}. The runner encodes the pair as
+#  `{p1}P1_{p2}P2` in the log path, so every condition gets a
+#  unique folder.
 # ==============================================================
 
 trading_self_refine_v1:
@@ -350,7 +353,14 @@ trading_self_refine_v1:
       p2_resources: { "X": 5, "Y": 25 }
       p1_strategy: "self_refine"
       p2_strategy: "self_refine"
-      behaviour_name: "self_refine"
+    - p1_resources: { "X": 25, "Y": 5 }
+      p2_resources: { "X": 5, "Y": 25 }
+      p1_strategy: "default"
+      p2_strategy: "self_refine"
+    - p1_resources: { "X": 25, "Y": 5 }
+      p2_resources: { "X": 5, "Y": 25 }
+      p1_strategy: "self_refine"
+      p2_strategy: "default"
   models: medium
 
 buysell_self_refine_v1:
@@ -366,13 +376,21 @@ buysell_self_refine_v1:
       money: 100
       p1_strategy: "default"
       p2_strategy: "default"
-      behaviour_name: "baseline"
     - seller_val: 40
       buyer_val: 60
       money: 100
       p1_strategy: "self_refine"
       p2_strategy: "self_refine"
-      behaviour_name: "self_refine"
+    - seller_val: 40
+      buyer_val: 60
+      money: 100
+      p1_strategy: "default"
+      p2_strategy: "self_refine"
+    - seller_val: 40
+      buyer_val: 60
+      money: 100
+      p1_strategy: "self_refine"
+      p2_strategy: "default"
   models: medium
 
 ultimatum_self_refine_v1:
@@ -386,9 +404,13 @@ ultimatum_self_refine_v1:
     - dollars: 100
       p1_strategy: "default"
       p2_strategy: "default"
-      behaviour_name: "baseline"
     - dollars: 100
       p1_strategy: "self_refine"
       p2_strategy: "self_refine"
-      behaviour_name: "self_refine"
+    - dollars: 100
+      p1_strategy: "default"
+      p2_strategy: "self_refine"
+    - dollars: 100
+      p1_strategy: "self_refine"
+      p2_strategy: "default"
   models: medium
