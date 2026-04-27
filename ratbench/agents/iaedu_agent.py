@@ -13,6 +13,10 @@ from ratbench.agents.agent_behaviours import SelfCheckingAgent, SelfRefineAgent
 from ratbench.constants import AGENT_ONE, AGENT_TWO
 
 
+class _IaEduRateLimitError(Exception):
+    """Raised internally when the stream surfaces a 429 — caught for retry."""
+
+
 class IaEduAgent(Agent):
     """Hosted chatbot agent backed by the iaedu streaming API.
 
@@ -70,25 +74,37 @@ class IaEduAgent(Agent):
     def update_conversation_tracking(self, role, message):
         self.conversation.append({"role": role, "content": message})
 
+    RATE_LIMIT_BACKOFFS = (15, 30, 60)
+
     def chat(self):
         if self.rate_limit_delay:
             time.sleep(self.rate_limit_delay)
-        data = {
-            "channel_id": self.channel_id,
-            "thread_id": self.thread_id,
-            "user_info": "{}",
-            "message": self._flatten_conversation(),
-        }
-        headers = {"x-api-key": self.api_key}
-        resp = requests.post(
-            self.endpoint,
-            files={k: (None, v) for k, v in data.items()},
-            headers=headers,
-            timeout=self.timeout,
-            stream=True,
-        )
-        resp.raise_for_status()
-        return self._consume_stream(resp)
+        attempt = 0
+        while True:
+            data = {
+                "channel_id": self.channel_id,
+                "thread_id": self.thread_id,
+                "user_info": "{}",
+                "message": self._flatten_conversation(),
+            }
+            headers = {"x-api-key": self.api_key}
+            resp = requests.post(
+                self.endpoint,
+                files={k: (None, v) for k, v in data.items()},
+                headers=headers,
+                timeout=self.timeout,
+                stream=True,
+            )
+            resp.raise_for_status()
+            try:
+                return self._consume_stream(resp)
+            except _IaEduRateLimitError:
+                if attempt >= len(self.RATE_LIMIT_BACKOFFS):
+                    raise
+                wait = self.RATE_LIMIT_BACKOFFS[attempt]
+                sys.stderr.write(f"[iaedu] rate-limited, backing off {wait}s (attempt {attempt + 1})\n")
+                time.sleep(wait)
+                attempt += 1
 
     def _flatten_conversation(self):
         parts = []
@@ -99,7 +115,8 @@ class IaEduAgent(Agent):
         return "\n\n".join(parts)
 
     def _consume_stream(self, resp):
-        chunks = []
+        token_chunks = []
+        fallback_message = ""
         parsed_any = False
         for raw in resp.iter_lines(decode_unicode=True):
             if not raw:
@@ -114,12 +131,26 @@ class IaEduAgent(Agent):
             try:
                 payload = json.loads(line)
             except ValueError:
-                chunks.append(line)
+                token_chunks.append(line)
                 continue
             parsed_any = True
             self._check_for_error(payload)
-            chunks.append(self._extract_text(payload))
-        text = "".join(c for c in chunks if c).strip()
+            event_type = payload.get("type") if isinstance(payload, dict) else None
+            if event_type == "error":
+                content = payload.get("content", "")
+                msg = content if isinstance(content, str) else json.dumps(content)
+                if "429" in msg or "rate limit" in msg.lower():
+                    raise _IaEduRateLimitError(msg)
+                raise RuntimeError(f"iaedu API error: {msg}")
+            if event_type == "token":
+                token_chunks.append(self._extract_text(payload))
+            elif event_type == "message":
+                # Aggregate message — keep as fallback in case no token events arrived
+                fallback_message = self._extract_text(payload)
+            # Skip "start" ("Processing") and "done" (run-id) events
+        text = "".join(c for c in token_chunks if c).strip()
+        if not text:
+            text = fallback_message.strip()
         if not text and not parsed_any:
             text = resp.text.strip()
         self._check_text_for_error(text)
@@ -145,6 +176,8 @@ class IaEduAgent(Agent):
         # Catch error messages the API streams inline without an `error` key
         # (e.g. "Rate limit reached (429)" showing up as plain content).
         if text and cls._INLINE_ERROR_RE.search(text):
+            if "429" in text or "rate limit" in text.lower():
+                raise _IaEduRateLimitError(text[:200])
             raise RuntimeError(f"iaedu API error (inline): {text[:200]}")
 
     @staticmethod
