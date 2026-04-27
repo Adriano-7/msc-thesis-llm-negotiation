@@ -51,8 +51,25 @@ def load_status() -> pd.DataFrame:
                     (b for b in ["desperate", "cunning"] if setup_tag.endswith(f"_{b}")),
                     "default",
                 )
+            elif section_raw == "self_refine" and len(parts) >= 7:
+                # self_refine/{game}_self_refine_v1/{size}/{pair}/{setup}/timestamp/file
+                game_type = parts[1].replace("_self_refine_v1", "")
+                model_size = parts[2]
+                pair_tag = parts[3]
+                setup_tag = parts[4]
+                if setup_tag.endswith("_self_refineP1_self_refineP2"):
+                    condition = "self_refine"
+                elif setup_tag.endswith("_defaultP1_defaultP2"):
+                    condition = "baseline"
+                else:
+                    continue
             else:
                 continue
+
+            if section_raw == "section_one":
+                retry = "retry" if condition == "retry3" else "no_retry"
+            else:
+                retry = "no_retry"
 
             with open(gs_path) as f:
                 data = json.load(f)
@@ -67,6 +84,7 @@ def load_status() -> pd.DataFrame:
                     "Section": section_raw,
                     "Game": game_type,
                     "Condition": condition,
+                    "Retry": retry,
                     "Model Size": model_size,
                     "Pair": pair_tag,
                     "Setup": setup_tag,
@@ -125,6 +143,75 @@ col4.metric("Incomplete Combinations", f"{incomplete_combos:,}")
 
 st.markdown("---")
 
+st.subheader("Grouped Status by Model Size")
+
+per_cell = (
+    filtered.groupby(["Model Size", "Game", "Section", "Condition", "Retry", "Pair"])
+    .agg(Played=("Completed", "count"), Completed=("Completed", "sum"))
+    .reset_index()
+)
+per_cell["Cell"] = per_cell["Completed"].astype(str) + "/" + per_cell["Played"].astype(str)
+
+SECTION_MAP = {
+    ("section_one", "no_retries"):  ("S1-Base",     "-"),
+    ("section_one", "retry3"):      ("S1-Base",     "-"),
+    ("section_two", "default"):     ("S2-Personas", "default"),
+    ("section_two", "desperate"):   ("S2-Personas", "desperate"),
+    ("section_two", "cunning"):     ("S2-Personas", "cunning"),
+    ("self_refine", "baseline"):    ("Self-Refine", "baseline"),
+    ("self_refine", "self_refine"): ("Self-Refine", "self_refine"),
+}
+
+CANONICAL_SIZES = ["very_small", "small", "medium"]
+GAME_ORDER = ["buysell", "trading", "ultimatum"]
+
+GROUPED_TABLE_CSS = """
+<style>
+.grouped-status-table { border-collapse: collapse; font-size: 0.85rem; margin-bottom: 1rem; }
+.grouped-status-table th, .grouped-status-table td {
+    border: 1px solid #e0e0e0; padding: 4px 10px; text-align: center; white-space: nowrap;
+}
+.grouped-status-table thead th { background: #f5f5f5; font-weight: 600; }
+.grouped-status-table thead tr:first-child th { background: #e8eef6; font-size: 0.95rem; }
+.grouped-status-table tbody th { text-align: left; font-weight: 500; background: #fafafa; }
+.grouped-status-table tbody td:empty::before { content: "-"; color: #bbb; }
+</style>
+"""
+st.markdown(GROUPED_TABLE_CSS, unsafe_allow_html=True)
+
+for size in CANONICAL_SIZES:
+    sub = per_cell[per_cell["Model Size"] == size]
+    if sub.empty:
+        continue
+    st.markdown(f"### {size.replace('_', ' ').title()}")
+
+    sub = sub.copy()
+    labels = sub.apply(
+        lambda r: SECTION_MAP.get((r["Section"], r["Condition"]), (r["Section"], r["Condition"])),
+        axis=1,
+    )
+    sub["SectionLabel"] = [x[0] for x in labels]
+    sub["SubLabel"] = [x[1] for x in labels]
+
+    pivoted = sub.pivot_table(
+        index="Pair",
+        columns=["Game", "SectionLabel", "SubLabel", "Retry"],
+        values="Cell",
+        aggfunc="first",
+    )
+    pivoted.columns.names = ["Game", "Section", "Sub", "Retry"]
+
+    present_games = [g for g in GAME_ORDER if g in pivoted.columns.get_level_values(0)]
+    if present_games:
+        pivoted = pivoted.reindex(columns=present_games, level=0)
+
+    pivoted = pivoted.fillna("-")
+
+    html = pivoted.to_html(classes="grouped-status-table", border=0, escape=False)
+    st.markdown(html, unsafe_allow_html=True)
+
+st.markdown("---")
+st.subheader("Flat Status Table")
 st.dataframe(grouped, use_container_width=True, hide_index=True)
 
 # --- Error Breakdown (incomplete games only) ---
