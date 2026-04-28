@@ -33,16 +33,32 @@ _THINK_LEADING_RE = re.compile(r"^(.*?)</think>\s*", flags=re.DOTALL)
 _SHARED_MODELS: dict = {}  # (model_id, quantization) -> (model, tokenizer)
 
 
-def evict_unused_models(keep_keys: set):
+def _delete_hf_disk_cache(model_id: str) -> None:
+    """Delete HF hub cache files for *model_id* to reclaim disk space."""
+    import os
+    import shutil
+    hf_home = os.environ.get("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
+    safe_name = "models--" + model_id.replace("/", "--")
+    cache_path = os.path.join(hf_home, "hub", safe_name)
+    if os.path.isdir(cache_path):
+        print(f"[HuggingFaceAgent] Deleting HF disk cache: {cache_path}")
+        shutil.rmtree(cache_path)
+
+
+def evict_unused_models(keep_keys: set, evict_disk: bool = False):
     """Remove cached models not in *keep_keys* and free their VRAM.
 
     Args:
         keep_keys: set of ``(model_id, quantization)`` tuples to keep.
+        evict_disk: also delete HF hub files from disk (useful on space-constrained
+                    runtimes like Kaggle; off by default).
     """
     to_remove = [k for k in _SHARED_MODELS if k not in keep_keys]
     for key in to_remove:
         print(f"[HuggingFaceAgent] Evicting {key[0]} from VRAM")
         del _SHARED_MODELS[key]
+        if evict_disk:
+            _delete_hf_disk_cache(key[0])
     if to_remove:
         import gc
         gc.collect()
