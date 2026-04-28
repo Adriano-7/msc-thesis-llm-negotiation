@@ -51,7 +51,7 @@ The kernel runs as your user and inherits secrets you've registered in your Kagg
 | Secret label | When you need it |
 | --- | --- |
 | `HF_TOKEN` | Always — Llama and Gemma weights are gated |
-| `GITHUB_TOKEN` | Always for this repo (it's private). PAT with `repo` read scope. |
+| `GITHUB_TOKEN` | Always for this repo (it's private). PAT needs **read + write** on Contents (fine-grained) or full `repo` scope (classic) to clone and push results. |
 
 These are visible to all kernels you submit when `enable_internet: true` (which `kernel-metadata.template.json` sets).
 
@@ -173,7 +173,7 @@ If a kernel fails, the manifest will show `status: "failed"` after the next `fet
 - **First-run model download.** `transformers.from_pretrained()` pulls the weights from HF Hub on every kernel run (no persistent cache between runs). Expect ~5–10 min for an 8B model. This is noise next to a multi-hour experiment but adds up if you submit many short kernels.
 - **VRAM ceiling.** `T4 x2` (32 GB) fits very_small (4–9B) comfortably. `small` (12–14B) needs careful quantization. `medium` (24–27B) requires `L4 x4`. `big` (70B) is impractical on free Kaggle even with 4-bit.
 - **Accelerator IDs.** Kaggle CLI expects accelerator IDs such as `NvidiaTeslaT4`. `kaggle/launch.sh` now uses those IDs directly and passes them via `kaggle kernels push --accelerator ...`.
-- **Repo visibility.** The repo is private; the kernel reads `GITHUB_TOKEN` from Kaggle Secrets and passes it via `git -c http.extraHeader=...` so the token is never stored in `.git/config`. Use a PAT with read access to this repo.
+- **Repo visibility.** The repo is private; the kernel reads `GITHUB_TOKEN` from Kaggle Secrets and passes it via `git -c http.extraHeader=...` so the token is never stored in `.git/config`. Use a PAT with **Contents: read + write** (fine-grained) or full `repo` scope (classic) — read-only is not enough to push result branches.
 - **Concurrency.** Kaggle queues kernels past ~4–5 concurrent. Submitting 12 jobs is fine — they'll just complete serially.
 
 ## Quick reference
