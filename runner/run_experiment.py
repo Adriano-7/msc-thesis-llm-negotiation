@@ -414,11 +414,12 @@ def main():
 
     # Run all combos — evict unused models between pairs to save VRAM
     from ratbench.agents.hf_agent import evict_unused_models
+    evict_hf_cache = cfg.get("evict_hf_cache", False)
     total_success, total_errors = 0, 0
     for model_p1, model_p2 in pairs:
         keep = {(model_p1["id"], model_p1["quantization"]),
                 (model_p2["id"], model_p2["quantization"])}
-        evict_unused_models(keep)
+        evict_unused_models(keep, evict_disk=evict_hf_cache)
         for setup in setups:
             s, e = runner(model_p1, model_p2, setup, num_runs, iterations, log_base, max_retries=max_retries)
             total_success += s
