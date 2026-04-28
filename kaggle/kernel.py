@@ -13,20 +13,21 @@ Substituted by kaggle/render_kernel.py:
 Bootstraps the env, runs runner/run_experiment.py exactly as the SLURM path does
 (transformers downloads weights from HF Hub on first use), tars the .logs/ tree
 into /kaggle/working/results.tar.gz, and then tries to push the new .logs/
-files directly onto the shared `kaggle-results` branch on GitHub. The tarball
-is the fallback if the push fails.
+files onto its own `kaggle-results/<experiment>-<size>-<ref8>` branch on GitHub
+(unique per run, so concurrent kernels never collide). The tarball is the
+fallback if the push fails.
 """
 import os
 import shutil
 import subprocess
 import sys
 import base64
-import re
 
 REPO_DIR = "/kaggle/working/repo"
 HF_HOME = "/kaggle/working/hf_cache"
 RESULT_TAR = "/kaggle/working/results.tar.gz"
-RESULTS_BRANCH = "kaggle-results"
+_GIT_REF = "{{GIT_REF}}"  # substituted by render_kernel.py; sliced below for branch name
+RESULTS_BRANCH = f"kaggle-results/{{EXPERIMENT}}-{{SIZE}}-{_GIT_REF[:8]}"
 RESULTS_WT = "/kaggle/working/results-wt"
 
 
@@ -139,11 +140,11 @@ def _auth_git_args(token: str) -> list[str]:
 
 
 def push_results_to_github() -> None:
-    """Push the run's new .logs/ files onto the shared `kaggle-results` branch.
+    """Push the run's new .logs/ files onto a per-run branch on GitHub.
 
-    No retry: a push rejection (e.g. concurrent kernel raced us) is logged and
-    swallowed, since results.tar.gz + kaggle/fetch_results.py is the documented
-    fallback path.
+    Branch name: kaggle-results/<experiment>-<size>-<ref8> — unique per run,
+    so concurrent kernels never collide. No retry: any push failure is logged
+    and swallowed; results.tar.gz + kaggle/fetch_results.py is the fallback.
     """
     token = os.environ.get("GITHUB_TOKEN", "").strip()
     if not token:
@@ -160,17 +161,7 @@ def push_results_to_github() -> None:
     env["GIT_TERMINAL_PROMPT"] = "0"
 
     try:
-        # Try to fetch the existing results branch; ok if it doesn't exist yet.
-        fetch = subprocess.run(
-            ["git", "-C", REPO_DIR, *auth, "fetch", "origin",
-             f"{RESULTS_BRANCH}:refs/remotes/origin/{RESULTS_BRANCH}"],
-            env=env, capture_output=True, text=True,
-        )
-        has_remote_branch = fetch.returncode == 0
-        if not has_remote_branch:
-            print(f"[push] {RESULTS_BRANCH} not on remote yet; will create it")
-
-        base_ref = f"origin/{RESULTS_BRANCH}" if has_remote_branch else "HEAD"
+        base_ref = "HEAD"  # per-run branch; always a fresh branch off the cloned ref
         if os.path.exists(RESULTS_WT):
             subprocess.run(
                 ["git", "-C", REPO_DIR, "worktree", "remove", "--force", RESULTS_WT],

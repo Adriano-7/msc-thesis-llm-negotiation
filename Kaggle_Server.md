@@ -105,22 +105,24 @@ GIT_REPO=https://github.com/your-fork/MultiAgent-Negotiation.git bash kaggle/lau
 
 There are two independent paths to get a kernel's results into your local repo:
 
-### 1. Direct push to the `kaggle-results` branch (default)
+### 1. Direct push (per-run branch, default)
 
-After a successful run, the kernel itself pushes the new `.logs/...` files onto a shared `kaggle-results` branch on this GitHub repo, using the same `GITHUB_TOKEN` Kaggle Secret it used to clone. To pull the results locally:
+After a successful run, the kernel pushes the new `.logs/...` files onto its own branch named `kaggle-results/<experiment>-<size>-<gitref8>` on this GitHub repo, using the same `GITHUB_TOKEN` Kaggle Secret it used to clone. Each run gets a unique branch, so concurrent kernels never collide.
+
+To pull the results locally (replace the branch name with the one printed in the kernel log):
 
 ```bash
 # one-shot, no merge commit on main:
-git fetch origin kaggle-results
-git checkout origin/kaggle-results -- .logs/
+git fetch origin 'kaggle-results/<experiment>-<size>-<ref8>'
+git checkout origin/kaggle-results/<experiment>-<size>-<ref8> -- .logs/
 
-# or, merge the branch in:
-git merge origin/kaggle-results
+# list all per-run branches:
+git branch -r | grep kaggle-results/
 ```
 
 Files land at the exact same `.logs/<section>/<experiment>/<size>/...` paths the SLURM/MIA runs produce, so the Streamlit dashboard sees them transparently.
 
-The kernel prints a `[push] pushed to refs/heads/kaggle-results: <sha>` line on success. If two kernels finish concurrently and the second one's push is rejected, it prints `[push] FAILED: …` and the tarball/`fetch_results.py` flow below remains the fallback. No retry — resolve any cross-run interleaving locally.
+The kernel prints a `[push] pushed to refs/heads/kaggle-results/<experiment>-<size>-<ref8>: <sha>` line on success. If the push fails for any reason the kernel prints `[push] FAILED: …` and the tarball/`fetch_results.py` flow below remains the fallback. No retry.
 
 ### 2. Tarball + `fetch_results.py` (always available, used as fallback)
 
@@ -158,10 +160,10 @@ A run typically prints these phase markers (from `kaggle/kernel.py`):
 [bootstrap] secret loaded: HF_TOKEN
 [bootstrap] running: python runner/run_experiment.py --config ... --experiment ... --model_group ...
 [bootstrap] wrote /kaggle/working/results.tar.gz (12.3 MB)
-[push] pushed to refs/heads/kaggle-results: <sha>
+[push] pushed to refs/heads/kaggle-results/<experiment>-<size>-<ref8>: <sha>
 ```
 
-`[push] FAILED: …` (or `[push] skipped: …`) replaces the last line when the kernel can't reach the remote or another kernel raced it; the tarball is still produced either way.
+`[push] FAILED: …` (or `[push] skipped: …`) replaces the last line when the kernel can't reach the remote; the tarball is still produced either way.
 
 If a kernel fails, the manifest will show `status: "failed"` after the next `fetch_results.py`. The Kaggle web UI shows the full traceback.
 
