@@ -13,10 +13,11 @@ Substituted by kaggle/render_kernel.py:
 Bootstraps the env, runs runner/run_experiment.py exactly as the SLURM path does
 (transformers downloads weights from HF Hub on first use), tars the .logs/ tree
 into /kaggle/working/results.tar.gz, and then tries to push the new .logs/
-files onto its own `kaggle-results/<experiment>-<size>-<ref8>` branch on GitHub
+files onto its own `kaggle-results/<experiment>-<size>-<ref8>-<YYYYMMDD-HH>` branch on GitHub
 (unique per run, so concurrent kernels never collide). The tarball is the
 fallback if the push fails.
 """
+import datetime
 import os
 import shutil
 import subprocess
@@ -27,7 +28,8 @@ REPO_DIR = "/kaggle/working/repo"
 HF_HOME = "/kaggle/working/hf_cache"
 RESULT_TAR = "/kaggle/working/results.tar.gz"
 _GIT_REF = "{{GIT_REF}}"  # substituted by render_kernel.py; sliced below for branch name
-RESULTS_BRANCH = f"kaggle-results/{{EXPERIMENT}}-{{SIZE}}-{_GIT_REF[:8]}"
+_RUN_TS = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H")
+RESULTS_BRANCH = f"kaggle-results/{{EXPERIMENT}}-{{SIZE}}-{_GIT_REF[:8]}-{_RUN_TS}"
 RESULTS_WT = "/kaggle/working/results-wt"
 
 
