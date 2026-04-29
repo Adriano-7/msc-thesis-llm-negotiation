@@ -99,9 +99,13 @@ def clone_repo() -> None:
 
 def install_deps() -> None:
     subprocess.run(
+        [sys.executable, "-m", "pip", "install", "-q", "--upgrade", "transformers"],
+        check=True,
+    )
+    subprocess.run(
         [sys.executable, "-m", "pip", "install", "-q",
          "-r", f"{REPO_DIR}/requirements.txt",
-         "transformers", "accelerate", "bitsandbytes",
+         "accelerate", "bitsandbytes",
          "sentencepiece", "protobuf", "pyyaml"],
         check=True,
     )
