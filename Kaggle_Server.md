@@ -55,6 +55,31 @@ The kernel runs as your user and inherits secrets you've registered in your Kagg
 
 These are visible to all kernels you submit when `enable_internet: true` (which `kernel-metadata.template.json` sets).
 
+### 4. (Optional) Multiple Kaggle accounts
+
+If you want to submit jobs under different Kaggle accounts (e.g. to stretch the per-account weekly GPU quota), drop one profile file per account into `kaggle/accounts/<name>.env`:
+
+```bash
+# kaggle/accounts/alice.env
+KAGGLE_USERNAME=alice
+KAGGLE_KEY=...
+
+# kaggle/accounts/bob.env
+KAGGLE_USERNAME=bob
+KAGGLE_KEY=...
+```
+
+These files are gitignored. Pick the account at submission time:
+
+```bash
+KAGGLE_ACCOUNT=alice EXPERIMENTS="buysell_section_one" SIZES="very_small" bash kaggle/launch.sh
+KAGGLE_ACCOUNT=bob   EXPERIMENTS="trading_section_one" SIZES="very_small" bash kaggle/launch.sh
+```
+
+Each row in `manifest.jsonl` records the `account` it was pushed under, and `python kaggle/fetch_results.py` automatically loads the right credentials per row when polling status / downloading output. One fetch command pulls everything across all accounts.
+
+If `KAGGLE_ACCOUNT` is unset, `launch.sh` falls back to `.env` / `~/.kaggle/kaggle.json` exactly as before.
+
 ## Running experiments
 
 ### Default run (uses the experiment list baked into `kaggle/launch.sh`)

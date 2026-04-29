@@ -21,6 +21,10 @@
 #   ~/.kaggle/kaggle.json (chmod 600)                — API token
 #
 # Optional env:
+#   KAGGLE_ACCOUNT   — name of a profile under kaggle/accounts/<name>.env;
+#                      sourced to override KAGGLE_USERNAME / KAGGLE_KEY for
+#                      this run. Lets you submit to different Kaggle accounts
+#                      without touching ~/.kaggle/kaggle.json.
 #   KAGGLE_GPU_TYPE  — default "NvidiaTeslaT4"  (also: "NvidiaTeslaP100", "NvidiaL4")
 #   GIT_REF          — default $(git rev-parse HEAD)
 #   GIT_REPO         — default https://github.com/Adriano-7/MultiAgent-Negotiation.git
@@ -37,6 +41,22 @@ if [ -f "$REPO_DIR/.env" ]; then
     # shellcheck disable=SC1091
     source "$REPO_DIR/.env"
     set +a
+fi
+
+# ── Optional: load per-account profile (overrides .env) ─────
+if [ -n "${KAGGLE_ACCOUNT:-}" ]; then
+    PROFILE="$SCRIPT_DIR/accounts/${KAGGLE_ACCOUNT}.env"
+    if [ ! -f "$PROFILE" ]; then
+        echo "ERROR: KAGGLE_ACCOUNT='$KAGGLE_ACCOUNT' but $PROFILE not found." >&2
+        echo "Create it with KAGGLE_USERNAME=... and KAGGLE_KEY=..." >&2
+        exit 1
+    fi
+    set -a
+    # shellcheck disable=SC1090
+    source "$PROFILE"
+    set +a
+    # Force the username from the profile to win over any earlier value.
+    KAGGLE_USER="$KAGGLE_USERNAME"
 fi
 
 # ── Resolve Kaggle username ─────────────────────────────────
@@ -81,6 +101,7 @@ fi
 TOTAL=$((${#EXP_ARRAY[@]} * ${#SIZE_ARRAY[@]}))
 echo "============================================"
 echo "Target     : Kaggle"
+echo "Account    : ${KAGGLE_ACCOUNT:-(default)}"
 echo "User       : $KAGGLE_USER"
 echo "GPU type   : $KAGGLE_GPU_TYPE"
 echo "Git ref    : $GIT_REF"
@@ -135,6 +156,7 @@ print(json.dumps({
     'gpu_type': '$KAGGLE_GPU_TYPE',
     'git_ref': '$GIT_REF',
     'submitted_at': '$SUBMITTED_AT',
+    'account': '${KAGGLE_ACCOUNT:-}' or None,
     'status': 'pushed',
 }))
 " >> "$MANIFEST"
