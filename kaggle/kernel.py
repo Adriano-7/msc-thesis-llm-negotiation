@@ -25,7 +25,7 @@ import sys
 import base64
 
 REPO_DIR = "/kaggle/working/repo"
-HF_HOME = "/kaggle/working/hf_cache"
+HF_HOME = "/tmp/hf_cache"
 RESULT_TAR = "/kaggle/working/results.tar.gz"
 _GIT_REF = "{{GIT_REF}}"  # substituted by render_kernel.py; sliced below for branch name
 _RUN_TS = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H")
