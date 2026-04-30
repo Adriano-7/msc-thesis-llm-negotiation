@@ -104,6 +104,77 @@ Models must be pre-downloaded since GPU partitions have no internet access.
 
 ---
 
+## Running Experiments on Kaggle
+
+Experiments can also be submitted to Kaggle as free GPU kernels. Each kernel clones the repo, runs the experiment, and pushes results back to a per-run GitHub branch.
+
+### Quick Start
+
+```bash
+# Submit all default experiments (default account)
+bash kaggle/launch.sh
+
+# Submit specific experiments and sizes
+EXPERIMENTS="buysell_section_one" SIZES="very_small" bash kaggle/launch.sh
+
+# Use a named account profile (see kaggle/accounts/)
+KAGGLE_ACCOUNT=adrianomachado1 bash kaggle/launch.sh
+
+# Preview without actually submitting
+DRY_RUN=1 bash kaggle/launch.sh
+```
+
+### Checking Status
+
+Use `kaggle/status.sh` to check kernel statuses without opening the browser:
+
+```bash
+# Check all staged kernels for one account
+KAGGLE_ACCOUNT=adrianomachado1 bash kaggle/status.sh
+
+# Check across all account profiles
+bash kaggle/status.sh --all-accounts
+
+# List 20 most-recently-run kernels
+KAGGLE_ACCOUNT=adrianomachado1 bash kaggle/status.sh --recent
+
+# Combine flags
+bash kaggle/status.sh --all-accounts --recent --page-size 10
+```
+
+### Retrieving Results
+
+Each kernel pushes its output to a branch named `kaggle-results/<experiment>-<size>-<ref8>-<timestamp>` when it finishes:
+
+```bash
+git fetch
+git branch -r | grep kaggle-results/
+git checkout kaggle-results/<branch-name>
+```
+
+If the git push fails, a `results.tar.gz` tarball is left in the kernel's output files and can be downloaded with:
+
+```bash
+kaggle kernels output <owner>/<slug> -p ./results/
+```
+
+### Multiple Accounts
+
+Account profiles live in `kaggle/accounts/<name>.env`. Each file sets `KAGGLE_USERNAME` and `KAGGLE_KEY`. Pass `KAGGLE_ACCOUNT=<name>` to either `launch.sh` or `status.sh` to use that profile.
+
+### Available Overrides
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `KAGGLE_ACCOUNT` | Profile name under `kaggle/accounts/` | (system default) |
+| `KAGGLE_GPU_TYPE` | GPU accelerator | `NvidiaTeslaT4` |
+| `GIT_REF` | Commit to run | `HEAD` |
+| `EXPERIMENTS` | Space-separated experiment names | section-two defaults |
+| `SIZES` | Space-separated model groups | `none` |
+| `DRY_RUN` | Preview without submitting | — |
+
+---
+
 ## Running Games
 
 Running and modifying a game is relatively easy. This is for example the
