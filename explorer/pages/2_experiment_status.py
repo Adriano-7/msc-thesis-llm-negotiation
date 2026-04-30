@@ -51,6 +51,21 @@ def load_status() -> pd.DataFrame:
                     (b for b in ["desperate", "cunning"] if setup_tag.endswith(f"_{b}")),
                     "default",
                 )
+            elif section_raw == "section_two" and len(parts) == 6:
+                # trading/ultimatum: behaviour encoded in pair directory name, no setup subdir
+                game_type = parts[1].replace("_section_two_personas", "")
+                model_size = parts[2]
+                raw_pair = parts[3]
+                setup_tag = "-"
+                condition = next(
+                    (b for b in ["desperate", "cunning", "default"] if raw_pair.endswith(f"_{b}")),
+                    "default",
+                )
+                pair_tag = raw_pair
+                for suffix in ["_desperate", "_cunning", "_default"]:
+                    if pair_tag.endswith(suffix):
+                        pair_tag = pair_tag[: -len(suffix)]
+                        break
             elif section_raw == "self_refine" and len(parts) >= 7:
                 # self_refine/{game}_self_refine_v1/{size}/{pair}/{setup}/timestamp/file
                 game_type = parts[1].replace("_self_refine_v1", "")
