@@ -150,7 +150,8 @@ def push_results_to_github() -> None:
 
     Branch name: kaggle-results/<experiment>-<size>-<ref8> — unique per run,
     so concurrent kernels never collide. No retry: any push failure is logged
-    and swallowed; results.tar.gz + kaggle/fetch_results.py is the fallback.
+    and swallowed; results.tar.gz is left in the kernel's output for manual
+    download from kaggle.com as the fallback.
     """
     token = os.environ.get("GITHUB_TOKEN", "").strip()
     if not token:
@@ -222,11 +223,13 @@ def push_results_to_github() -> None:
     except subprocess.CalledProcessError as exc:
         print(f"[push] FAILED: {exc} (stdout={exc.stdout!r} stderr={exc.stderr!r})")
         print(f"[push] tarball at {RESULT_TAR} is intact; "
-              "use `python kaggle/fetch_results.py` to recover this run.")
+              "download it from this kernel's Output tab on kaggle.com and "
+              "extract over the local repo to recover this run.")
     except Exception as exc:
         print(f"[push] FAILED: {exc}")
         print(f"[push] tarball at {RESULT_TAR} is intact; "
-              "use `python kaggle/fetch_results.py` to recover this run.")
+              "download it from this kernel's Output tab on kaggle.com and "
+              "extract over the local repo to recover this run.")
     finally:
         if os.path.exists(RESULTS_WT):
             subprocess.run(

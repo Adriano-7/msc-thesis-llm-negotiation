@@ -62,21 +62,23 @@ If you want to submit jobs under different Kaggle accounts (e.g. to stretch the 
 ```bash
 # kaggle/accounts/alice.env
 KAGGLE_USERNAME=alice
-KAGGLE_KEY=...
+KAGGLE_API_TOKEN=KGAT_...
 
 # kaggle/accounts/bob.env
 KAGGLE_USERNAME=bob
-KAGGLE_KEY=...
+KAGGLE_API_TOKEN=KGAT_...
 ```
 
-These files are gitignored. Pick the account at submission time:
+Get each `KAGGLE_API_TOKEN` from kaggle.com → Settings → **API Tokens** (the *Recommended* section) → **Generate New Token**. These files are gitignored.
+
+Pick the account at submission time:
 
 ```bash
 KAGGLE_ACCOUNT=alice EXPERIMENTS="buysell_section_one" SIZES="very_small" bash kaggle/launch.sh
 KAGGLE_ACCOUNT=bob   EXPERIMENTS="trading_section_one" SIZES="very_small" bash kaggle/launch.sh
 ```
 
-Each row in `manifest.jsonl` records the `account` it was pushed under, and `python kaggle/fetch_results.py` automatically loads the right credentials per row when polling status / downloading output. One fetch command pulls everything across all accounts.
+Each kernel still pushes its `.logs/` to a `kaggle-results/...` branch on GitHub regardless of which Kaggle account ran it, so collecting results stays a single `git fetch` regardless of how many accounts you submitted from.
 
 If `KAGGLE_ACCOUNT` is unset, `launch.sh` falls back to `.env` / `~/.kaggle/kaggle.json` exactly as before.
 
@@ -128,18 +130,14 @@ GIT_REPO=https://github.com/your-fork/MultiAgent-Negotiation.git bash kaggle/lau
 
 ## Pulling results back
 
-There are two independent paths to get a kernel's results into your local repo:
-
-### 1. Direct push (per-run branch, default)
-
-After a successful run, the kernel pushes the new `.logs/...` files onto its own branch named `kaggle-results/<experiment>-<size>-<gitref8>` on this GitHub repo, using the same `GITHUB_TOKEN` Kaggle Secret it used to clone. Each run gets a unique branch, so concurrent kernels never collide.
+After a successful run, the kernel pushes the new `.logs/...` files onto its own branch named `kaggle-results/<experiment>-<size>-<gitref8>-<ts>` on this GitHub repo, using the same `GITHUB_TOKEN` it cloned with. Each run gets a unique branch, so concurrent kernels never collide.
 
 To pull the results locally (replace the branch name with the one printed in the kernel log):
 
 ```bash
 # one-shot, no merge commit on main:
-git fetch origin 'kaggle-results/<experiment>-<size>-<ref8>'
-git checkout origin/kaggle-results/<experiment>-<size>-<ref8> -- .logs/
+git fetch origin 'kaggle-results/<experiment>-<size>-<ref8>-<ts>'
+git checkout origin/kaggle-results/<experiment>-<size>-<ref8>-<ts> -- .logs/
 
 # list all per-run branches:
 git branch -r | grep kaggle-results/
@@ -147,27 +145,7 @@ git branch -r | grep kaggle-results/
 
 Files land at the exact same `.logs/<section>/<experiment>/<size>/...` paths the SLURM/MIA runs produce, so the Streamlit dashboard sees them transparently.
 
-The kernel prints a `[push] pushed to refs/heads/kaggle-results/<experiment>-<size>-<ref8>: <sha>` line on success. If the push fails for any reason the kernel prints `[push] FAILED: …` and the tarball/`fetch_results.py` flow below remains the fallback. No retry.
-
-### 2. Tarball + `fetch_results.py` (always available, used as fallback)
-
-`kaggle/launch.sh` is fire-and-forget. After submission, the manifest at `kaggle/manifest.jsonl` tracks every kernel you've pushed. To poll once and download anything that has finished:
-
-```bash
-python kaggle/fetch_results.py
-```
-
-To block and watch until all submitted kernels are terminal (fetched or failed):
-
-```bash
-python kaggle/fetch_results.py --watch                # 60 s polling
-python kaggle/fetch_results.py --watch --interval 30  # custom interval
-```
-
-For each kernel that reports `complete`, `fetch_results.py`:
-1. Runs `kaggle kernels output <id> -p kaggle/.outputs/<slug>/`.
-2. Extracts `kaggle/.outputs/<slug>/results.tar.gz` over the local `.logs/` tree.
-3. Marks the manifest row `fetched`.
+The kernel prints a `[push] pushed to refs/heads/kaggle-results/<experiment>-<size>-<ref8>-<ts>: <sha>` line on success. If the push fails (e.g. the PAT lacks write scope, or GitHub is unreachable), the kernel prints `[push] FAILED: …` and `results.tar.gz` is left in the kernel's output — download it from the kernel page on kaggle.com and extract over the repo root.
 
 ## Inspecting and debugging
 
@@ -190,11 +168,11 @@ A run typically prints these phase markers (from `kaggle/kernel.py`):
 
 `[push] FAILED: …` (or `[push] skipped: …`) replaces the last line when the kernel can't reach the remote; the tarball is still produced either way.
 
-If a kernel fails, the manifest will show `status: "failed"` after the next `fetch_results.py`. The Kaggle web UI shows the full traceback.
+If a kernel fails outright (Python traceback, OOM, etc.), the Kaggle web UI shows the full traceback under the kernel's Logs tab.
 
 ## Caveats
 
-- **Quota.** A `T4 x2` kernel that runs for 8 h burns 8 h of your 30 h/week. Plan submissions accordingly; `manifest.jsonl` is the record of what you've spent.
+- **Quota.** A `T4 x2` kernel that runs for 8 h burns 8 h of your 30 h/week. Plan submissions accordingly; `kaggle kernels list --mine` shows recent runs and their durations.
 - **First-run model download.** `transformers.from_pretrained()` pulls the weights from HF Hub on every kernel run (no persistent cache between runs). Expect ~5–10 min for an 8B model. This is noise next to a multi-hour experiment but adds up if you submit many short kernels.
 - **VRAM ceiling.** `T4 x2` (32 GB) fits very_small (4–9B) comfortably. `small` (12–14B) needs careful quantization. `medium` (24–27B) requires `L4 x4`. `big` (70B) is impractical on free Kaggle even with 4-bit.
 - **Accelerator IDs.** Kaggle CLI expects accelerator IDs such as `NvidiaTeslaT4`. `kaggle/launch.sh` now uses those IDs directly and passes them via `kaggle kernels push --accelerator ...`.
@@ -206,7 +184,7 @@ If a kernel fails, the manifest will show `status: "failed"` after the next `fet
 ```bash
 # 1. one-time
 pip install kaggle
-echo "KAGGLE_USERNAME=...\nKAGGLE_KEY=..." >> .env
+echo "KAGGLE_USERNAME=...\nKAGGLE_API_TOKEN=KGAT_..." >> .env
 
 # 2. dry run
 DRY_RUN=1 bash kaggle/launch.sh
@@ -214,6 +192,8 @@ DRY_RUN=1 bash kaggle/launch.sh
 # 3. real submission (cheapest combo first)
 EXPERIMENTS="buysell_section_two_personas" SIZES="very_small" bash kaggle/launch.sh
 
-# 4. wait + collect
-python kaggle/fetch_results.py --watch
+# 4. once the kernel finishes, pull its result branch
+git fetch origin
+git branch -r | grep kaggle-results/
+git checkout origin/kaggle-results/<branch> -- .logs/
 ```

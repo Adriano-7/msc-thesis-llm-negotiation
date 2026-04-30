@@ -6,10 +6,11 @@
 #   1. python render_kernel.py emits a staging dir (kernel.py +
 #      kernel-metadata.json with the right Kaggle Models attached).
 #   2. kaggle kernels push submits the kernel.
-#   3. The slug is appended to kaggle/manifest.jsonl for fetch_results.py.
 #
 # Async only: this script returns immediately after pushing all kernels.
-# Pull results later with:  python kaggle/fetch_results.py
+# Each kernel pushes its results to a per-run branch named
+# `kaggle-results/<experiment>-<size>-<ref8>-<ts>` on GitHub when it finishes
+# (see kaggle/kernel.py). Pull results with `git fetch` + `git checkout`.
 #
 # Usage:
 #   bash kaggle/launch.sh
@@ -113,7 +114,6 @@ echo "Dry run    : ${DRY_RUN:-no}"
 echo "============================================"
 
 mkdir -p "$SCRIPT_DIR/.staging"
-MANIFEST="$SCRIPT_DIR/manifest.jsonl"
 
 # ── Submit ──────────────────────────────────────────────────
 for SIZE in "${SIZE_ARRAY[@]}"; do
@@ -131,7 +131,6 @@ for SIZE in "${SIZE_ARRAY[@]}"; do
             --gpu-type "$KAGGLE_GPU_TYPE" \
             --out "$STAGING_DIR")"
 
-        SLUG="$(echo "$SUMMARY" | python -c 'import json,sys; print(json.load(sys.stdin)["slug"])')"
         KERNEL_ID="$(echo "$SUMMARY" | python -c 'import json,sys; print(json.load(sys.stdin)["kernel_id"])')"
 
         PUSH_CMD=(kaggle kernels push -p "$STAGING_DIR" --accelerator "$KAGGLE_GPU_TYPE")
@@ -144,26 +143,10 @@ for SIZE in "${SIZE_ARRAY[@]}"; do
 
         echo "Submitting: $KERNEL_ID"
         "${PUSH_CMD[@]}"
-
-        SUBMITTED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-        python -c "
-import json, sys
-print(json.dumps({
-    'slug': '$SLUG',
-    'kernel_id': '$KERNEL_ID',
-    'experiment': '$EXP',
-    'size': '$SIZE',
-    'gpu_type': '$KAGGLE_GPU_TYPE',
-    'git_ref': '$GIT_REF',
-    'submitted_at': '$SUBMITTED_AT',
-    'account': '${KAGGLE_ACCOUNT:-}' or None,
-    'status': 'pushed',
-}))
-" >> "$MANIFEST"
         sleep 0.5
     done
 done
 
 echo "────────────────────────────────────────────"
-echo "Done. Pull results with:  python kaggle/fetch_results.py"
-echo "Manifest: $MANIFEST"
+echo "Done. Each kernel pushes results to its own GitHub branch on success."
+echo "List per-run branches:  git branch -r | grep kaggle-results/"
