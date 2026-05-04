@@ -48,6 +48,10 @@ def main() -> int:
 
     size_for_slug = args.size if args.size and args.size != "none" else "default"
     slug_base = slugify(f"{args.experiment}-{size_for_slug}")
+    # Kaggle enforces a 50-char slug limit; reserve 9 chars for "-{ref8}"
+    max_base = 50 - 9
+    if len(slug_base) > max_base:
+        slug_base = slug_base[:max_base].rstrip("-")
     slug = f"{slug_base}-{args.git_ref[:8]}"
     kernel_id = f"{args.user}/{slug}"
     # Kaggle auto-slugs the title; pick a title whose auto-slug == our slug
