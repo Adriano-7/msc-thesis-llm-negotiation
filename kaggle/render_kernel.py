@@ -35,6 +35,7 @@ def main() -> int:
     p.add_argument("--user", required=True, help="Kaggle username")
     p.add_argument("--out", required=True, help="staging dir to write into")
     p.add_argument("--gpu-type", default="T4 x2")
+    p.add_argument("--extra-args", default="", help="Extra CLI args forwarded to run_experiment.py")
     p.add_argument("--kernel-template", default=str(KAGGLE_DIR / "kernel.py"))
     p.add_argument(
         "--metadata-template",
@@ -68,6 +69,7 @@ def main() -> int:
         .replace("{{SUBMITTED_AT}}", submitted_at)
         .replace("{{GITHUB_TOKEN}}", os.environ.get("GITHUB_TOKEN", ""))
         .replace("{{HF_TOKEN}}", os.environ.get("HF_TOKEN", ""))
+        .replace("{{EXTRA_ARGS}}", args.extra_args)
     )
     (out_dir / "kernel.py").write_text(rendered)
 

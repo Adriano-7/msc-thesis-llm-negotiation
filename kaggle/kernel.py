@@ -123,6 +123,10 @@ def run_experiment() -> None:
     ]
     if "{{SIZE}}" not in ("", "none"):
         cmd += ["--model_group", "{{SIZE}}"]
+    extra = "{{EXTRA_ARGS}}"
+    if extra:
+        import shlex
+        cmd += shlex.split(extra)
     print(f"[bootstrap] running: {' '.join(cmd)}")
     subprocess.run(cmd, cwd=REPO_DIR, check=True)
 

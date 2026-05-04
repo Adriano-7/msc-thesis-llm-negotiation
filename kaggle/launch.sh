@@ -129,6 +129,7 @@ for SIZE in "${SIZE_ARRAY[@]}"; do
             --git-repo "$GIT_REPO" \
             --user "$KAGGLE_USER" \
             --gpu-type "$KAGGLE_GPU_TYPE" \
+            --extra-args "${EXTRA_ARGS:-}" \
             --out "$STAGING_DIR")"
 
         KERNEL_ID="$(echo "$SUMMARY" | python -c 'import json,sys; print(json.load(sys.stdin)["kernel_id"])')"

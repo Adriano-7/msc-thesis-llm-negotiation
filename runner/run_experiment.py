@@ -64,6 +64,16 @@ def _safe_name(model) -> str:
     return model.split("/")[-1].lower()
 
 
+def _count_existing_games(log_dir: str) -> int:
+    """Count completed games (subdirs containing game_state.json) in log_dir."""
+    if not os.path.isdir(log_dir):
+        return 0
+    return sum(
+        1 for e in os.scandir(log_dir)
+        if e.is_dir() and os.path.exists(os.path.join(e.path, "game_state.json"))
+    )
+
+
 def _strategy_tag(setup: dict) -> str | None:
     """Return a per-player strategy tag when the setup specifies strategies.
 
@@ -98,7 +108,7 @@ def _build_pairs(models: list, cross_play) -> list:
 
 
 # ── game factories ────────────────────────────────────────────────────
-def run_buysell(model_p1, model_p2, setup, num_runs, iterations, log_base, max_retries=0):
+def run_buysell(model_p1, model_p2, setup, num_runs, iterations, log_base, max_retries=0, target_runs=None):
     seller_val = setup["seller_val"]
     buyer_val = setup["buyer_val"]
     money = setup.get("money", 100)
@@ -116,6 +126,15 @@ def run_buysell(model_p1, model_p2, setup, num_runs, iterations, log_base, max_r
         tag = f"{tag}_{suffix}"
     pair_tag = f"{_safe_name(model_p1)}_vs_{_safe_name(model_p2)}"
     log_dir = os.path.join(log_base, pair_tag, tag)
+
+    if target_runs is not None:
+        existing = _count_existing_games(log_dir)
+        remaining = max(0, target_runs - existing)
+        if remaining == 0:
+            print(f"  → {pair_tag}/{tag}: {existing}/{target_runs} done, skipping")
+            return 0, 0
+        print(f"  → {pair_tag}/{tag}: {existing}/{target_runs} done, running {remaining} more")
+        num_runs = remaining
 
     success, errors = 0, 0
     for i in range(num_runs):
@@ -154,7 +173,7 @@ def run_buysell(model_p1, model_p2, setup, num_runs, iterations, log_base, max_r
     return success, errors
 
 
-def run_trading(model_p1, model_p2, setup, num_runs, iterations, log_base, max_retries=0):
+def run_trading(model_p1, model_p2, setup, num_runs, iterations, log_base, max_retries=0, target_runs=None):
     p1_res = setup["p1_resources"]
     p2_res = setup["p2_resources"]
 
@@ -169,6 +188,15 @@ def run_trading(model_p1, model_p2, setup, num_runs, iterations, log_base, max_r
     suffix = _strategy_tag(setup) or behaviour_name
     log_tag = f"{pair_tag}_{suffix}" if suffix else pair_tag
     log_dir = os.path.join(log_base, log_tag)
+
+    if target_runs is not None:
+        existing = _count_existing_games(log_dir)
+        remaining = max(0, target_runs - existing)
+        if remaining == 0:
+            print(f"  → {log_tag}: {existing}/{target_runs} done, skipping")
+            return 0, 0
+        print(f"  → {log_tag}: {existing}/{target_runs} done, running {remaining} more")
+        num_runs = remaining
 
     success, errors = 0, 0
     for i in range(num_runs):
@@ -203,7 +231,7 @@ def run_trading(model_p1, model_p2, setup, num_runs, iterations, log_base, max_r
     return success, errors
 
 
-def run_ultimatum(model_p1, model_p2, setup, num_runs, iterations, log_base, max_retries=0):
+def run_ultimatum(model_p1, model_p2, setup, num_runs, iterations, log_base, max_retries=0, target_runs=None):
     dollars = setup.get("dollars", 100)
 
     #  Persona / social behaviour support
@@ -217,6 +245,15 @@ def run_ultimatum(model_p1, model_p2, setup, num_runs, iterations, log_base, max
     suffix = _strategy_tag(setup) or behaviour_name
     log_tag = f"{pair_tag}_{suffix}" if suffix else pair_tag
     log_dir = os.path.join(log_base, log_tag)
+
+    if target_runs is not None:
+        existing = _count_existing_games(log_dir)
+        remaining = max(0, target_runs - existing)
+        if remaining == 0:
+            print(f"  → {log_tag}: {existing}/{target_runs} done, skipping")
+            return 0, 0
+        print(f"  → {log_tag}: {existing}/{target_runs} done, running {remaining} more")
+        num_runs = remaining
 
     success, errors = 0, 0
     for i in range(num_runs):
@@ -326,6 +363,17 @@ def main():
         default=None,
         help="Override base log directory",
     )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Skip combinations that already have enough games; top up to --target_runs",
+    )
+    parser.add_argument(
+        "--target_runs",
+        type=int,
+        default=None,
+        help="Target games per combination when --resume is active (default: num_runs from config)",
+    )
     args = parser.parse_args()
 
     # Load config
@@ -343,6 +391,7 @@ def main():
     setups = cfg["setups"]
     cross_play = cfg.get("cross_play", False)
     max_retries = cfg.get("max_retries", 0)
+    target_runs = (args.target_runs if args.target_runs is not None else num_runs) if args.resume else None
     
     # Extract the correct model list
     if args.model_group:
@@ -408,8 +457,8 @@ def main():
     for s in setups:
         bname = s.get("behaviour_name", "default")
         print(f"  - {bname}: {s}")
-    print(f"Runs/combo : {num_runs}")
-    print(f"Total games: {len(pairs) * len(setups) * num_runs}")
+    print(f"Runs/combo : {num_runs}{f' (resume → target {target_runs})' if target_runs is not None else ''}")
+    print(f"Total games: {len(pairs) * len(setups) * num_runs} max")
     print(f"{'='*60}\n")
 
     # Run all combos — evict unused models between pairs to save VRAM
@@ -421,7 +470,7 @@ def main():
                 (model_p2["id"], model_p2["quantization"])}
         evict_unused_models(keep, evict_disk=evict_hf_cache)
         for setup in setups:
-            s, e = runner(model_p1, model_p2, setup, num_runs, iterations, log_base, max_retries=max_retries)
+            s, e = runner(model_p1, model_p2, setup, num_runs, iterations, log_base, max_retries=max_retries, target_runs=target_runs)
             total_success += s
             total_errors += e
 
