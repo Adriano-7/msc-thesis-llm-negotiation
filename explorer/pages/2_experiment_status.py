@@ -9,10 +9,67 @@ import streamlit as st
 import pandas as pd
 from pathlib import Path
 
-from analysis.common import LOGS_ROOT
+from analysis.common import LOGS_ROOT, clean_name
 
 st.set_page_config(page_title="Experiment Status", layout="wide")
 st.title("Experiment Status")
+
+
+_STRAT_SUFFIX_RE = __import__("re").compile(r"_([a-z_]+)P1_([a-z_]+)P2$")
+
+_STRAT_TO_COND = {
+    ("default",     "default"):     "base × base",
+    ("self_refine", "self_refine"): "refine × refine",
+    ("default",     "self_refine"): "base × refine",
+    ("self_refine", "default"):     "refine × base",
+}
+
+_SR_GAMES = {
+    "trading_self_refine_v1":   "trading",
+    "buysell_self_refine_v1":   "buysell",
+    "ultimatum_self_refine_v1": "ultimatum",
+}
+
+
+def _sr_condition_dirs() -> list[tuple]:
+    """
+    Yield (game, size, pair_tag, condition, dir_path) for every self-refine
+    condition directory that exists on disk — including empty ones.
+    """
+    results = []
+    sr_root = Path(LOGS_ROOT) / "self_refine"
+    if not sr_root.exists():
+        return results
+    for exp_dir in sr_root.iterdir():
+        game = _SR_GAMES.get(exp_dir.name)
+        if game is None or not exp_dir.is_dir():
+            continue
+        for size_dir in exp_dir.iterdir():
+            if not size_dir.is_dir():
+                continue
+            size = size_dir.name
+            for sub in size_dir.iterdir():
+                if not sub.is_dir():
+                    continue
+                # Trading/Ultimatum: sub = "{pair}_{stratP1}_{stratP2}"
+                m = _STRAT_SUFFIX_RE.search(sub.name)
+                if m:
+                    cond = _STRAT_TO_COND.get((m.group(1), m.group(2)))
+                    if cond:
+                        pair = sub.name[: m.start()]
+                        results.append((game, size, pair, cond, sub))
+                else:
+                    # BuySell: sub = "{pair}", look one level deeper
+                    pair = sub.name
+                    for setup_dir in sub.iterdir():
+                        if not setup_dir.is_dir():
+                            continue
+                        m2 = _STRAT_SUFFIX_RE.search(setup_dir.name)
+                        if m2:
+                            cond = _STRAT_TO_COND.get((m2.group(1), m2.group(2)))
+                            if cond:
+                                results.append((game, size, pair, cond, setup_dir))
+    return results
 
 
 @st.cache_data
@@ -29,14 +86,12 @@ def load_status() -> pd.DataFrame:
 
         try:
             if section_raw == "section_one" and len(parts) == 8:
-                # section/game/condition/model_size/pair/setup/timestamp/file
                 game_type = parts[1].replace("_section_one", "")
                 condition = parts[2]
                 model_size = parts[3]
                 pair_tag = parts[4]
                 setup_tag = parts[5]
             elif section_raw == "section_one" and len(parts) == 7:
-                # section/game/condition/model_size/pair/timestamp/file (no setup_tag)
                 game_type = parts[1].replace("_section_one", "")
                 condition = parts[2]
                 model_size = parts[3]
@@ -52,7 +107,6 @@ def load_status() -> pd.DataFrame:
                     "default",
                 )
             elif section_raw == "section_two" and len(parts) == 6:
-                # trading/ultimatum: behaviour encoded in pair directory name, no setup subdir
                 game_type = parts[1].replace("_section_two_personas", "")
                 model_size = parts[2]
                 raw_pair = parts[3]
@@ -66,33 +120,28 @@ def load_status() -> pd.DataFrame:
                     if pair_tag.endswith(suffix):
                         pair_tag = pair_tag[: -len(suffix)]
                         break
-            elif section_raw == "self_refine" and len(parts) >= 7:
-                # self_refine/{game}_self_refine_v1/{size}/{pair}/{setup}/timestamp/file
+            elif section_raw == "self_refine":
+                # Parse strategy suffix from whichever path level carries it.
                 game_type = parts[1].replace("_self_refine_v1", "")
                 model_size = parts[2]
-                pair_tag = parts[3]
-                setup_tag = parts[4]
-                if setup_tag.endswith("_self_refineP1_self_refineP2"):
-                    condition = "self_refine"
-                elif setup_tag.endswith("_defaultP1_defaultP2"):
-                    condition = "baseline"
-                else:
+                p1 = p2 = None
+                for piece in reversed(parts[3:-1]):
+                    m = _STRAT_SUFFIX_RE.search(piece)
+                    if m:
+                        p1, p2 = m.group(1), m.group(2)
+                        break
+                condition = _STRAT_TO_COND.get((p1, p2)) if p1 else None
+                if condition is None:
                     continue
-            elif section_raw == "self_refine" and len(parts) == 6:
-                # self_refine/{game}_self_refine_v1/{size}/{pair_setup_combined}/timestamp/file
-                # (trading/ultimatum embed the setup tag inside the pair directory name)
-                game_type = parts[1].replace("_self_refine_v1", "")
-                model_size = parts[2]
-                raw_pair = parts[3]
-                setup_tag = "-"
-                if raw_pair.endswith("_self_refineP1_self_refineP2"):
-                    condition = "self_refine"
-                    pair_tag = raw_pair[: -len("_self_refineP1_self_refineP2")]
-                elif raw_pair.endswith("_defaultP1_defaultP2"):
-                    condition = "baseline"
-                    pair_tag = raw_pair[: -len("_defaultP1_defaultP2")]
-                else:
-                    continue
+                # Pair tag: buysell has an extra dir level, others embed it in dir name.
+                if len(parts) >= 8:                      # buysell: …/pair/setup/ts/file
+                    pair_tag = parts[3]
+                    setup_tag = parts[4]
+                else:                                    # trading/ultimatum: …/pair+strat/ts/file
+                    raw = parts[3]
+                    m2 = _STRAT_SUFFIX_RE.search(raw)
+                    pair_tag = raw[: m2.start()] if m2 else raw
+                    setup_tag = "-"
             else:
                 continue
 
@@ -126,7 +175,42 @@ def load_status() -> pd.DataFrame:
         except Exception:
             continue
 
-    return pd.DataFrame(records)
+    df = pd.DataFrame(records)
+
+    # Inject placeholder rows (Played=0) for self-refine condition directories
+    # that exist on disk but have no game_state.json files inside.
+    existing_keys = set()
+    if not df.empty:
+        sr = df[df["Section"] == "self_refine"]
+        for _, row in sr.iterrows():
+            existing_keys.add((row["Game"], row["Model Size"], row["Pair"], row["Condition"]))
+
+    placeholders = []
+    for game, size, pair, cond, _ in _sr_condition_dirs():
+        if (game, size, pair, cond) not in existing_keys:
+            placeholders.append({
+                "Section": "self_refine",
+                "Game": game,
+                "Condition": cond,
+                "Retry": "no_retry",
+                "Model Size": size,
+                "Pair": pair,
+                "Setup": "-",
+                "Completed": False,
+                "Error Type": "",
+                "Error Message": "",
+                "_planned_empty": True,
+            })
+
+    if placeholders:
+        ph_df = pd.DataFrame(placeholders)
+        df = pd.concat([df, ph_df], ignore_index=True)
+
+    if "_planned_empty" not in df.columns:
+        df["_planned_empty"] = False
+    df["_planned_empty"] = df["_planned_empty"].fillna(False)
+
+    return df
 
 
 with st.spinner("Scanning experiment logs..."):
@@ -145,11 +229,13 @@ selected_section = st.sidebar.selectbox(
 )
 only_incomplete = st.sidebar.checkbox("Show only incomplete combinations")
 
-filtered = df if selected_section == "All" else df[df["Section"] == selected_section]
+filtered     = df if selected_section == "All" else df[df["Section"] == selected_section]
+# Real runs only (exclude planned-empty placeholders) for metrics and flat table
+real_runs    = filtered[~filtered["_planned_empty"]]
 
-# --- Aggregate ---
+# --- Aggregate (real runs only) ---
 grouped = (
-    filtered.groupby(["Section", "Game", "Condition", "Model Size", "Pair", "Setup"])
+    real_runs.groupby(["Section", "Game", "Condition", "Model Size", "Pair", "Setup"])
     .agg(Played=("Completed", "count"), Completed=("Completed", "sum"))
     .reset_index()
 )
@@ -160,9 +246,9 @@ if only_incomplete:
     grouped = grouped[grouped["Completed"] < grouped["Played"]]
 
 # --- Top metrics ---
-total_played = int(filtered.shape[0])
-total_completed = int(filtered["Completed"].sum())
-pct_done = round(total_completed / total_played * 100, 1) if total_played else 0
+total_played    = int(real_runs.shape[0])
+total_completed = int(real_runs["Completed"].sum())
+pct_done        = round(total_completed / total_played * 100, 1) if total_played else 0
 incomplete_combos = int((grouped["Completed"] < grouped["Played"]).sum())
 
 col1, col2, col3, col4 = st.columns(4)
@@ -183,13 +269,15 @@ per_cell = (
 per_cell["Cell"] = per_cell["Completed"].astype(str) + "/" + per_cell["Played"].astype(str)
 
 SECTION_MAP = {
-    ("section_one", "no_retries"):  ("S1-Base",     "-"),
-    ("section_one", "retry3"):      ("S1-Base",     "-"),
-    ("section_two", "default"):     ("S2-Personas", "default"),
-    ("section_two", "desperate"):   ("S2-Personas", "desperate"),
-    ("section_two", "cunning"):     ("S2-Personas", "cunning"),
-    ("self_refine", "baseline"):    ("Self-Refine", "baseline"),
-    ("self_refine", "self_refine"): ("Self-Refine", "self_refine"),
+    ("section_one", "no_retries"):      ("S1-Base",     "-"),
+    ("section_one", "retry3"):          ("S1-Base",     "-"),
+    ("section_two", "default"):         ("S2-Personas", "default"),
+    ("section_two", "desperate"):       ("S2-Personas", "desperate"),
+    ("section_two", "cunning"):         ("S2-Personas", "cunning"),
+    ("self_refine", "base × base"):     ("Self-Refine", "base × base"),
+    ("self_refine", "refine × refine"): ("Self-Refine", "refine × refine"),
+    ("self_refine", "base × refine"):   ("Self-Refine", "base × refine"),
+    ("self_refine", "refine × base"):   ("Self-Refine", "refine × base"),
 }
 
 CANONICAL_SIZES = ["very_small", "small", "medium"]
@@ -245,7 +333,7 @@ st.subheader("Flat Status Table")
 st.dataframe(grouped, use_container_width=True, hide_index=True)
 
 # --- Error Breakdown (incomplete games only) ---
-incomplete_df = filtered[~filtered["Completed"]]
+incomplete_df = real_runs[~real_runs["Completed"]]
 if not incomplete_df.empty:
     st.markdown("---")
     st.subheader("Error Breakdown (Incomplete Games)")
