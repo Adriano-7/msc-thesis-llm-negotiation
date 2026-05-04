@@ -1,0 +1,199 @@
+{
+  "class": "MultiTurnUltimatumGame",
+  "run_epoch_time_ms": "1777760707521",
+  "players": [
+    {
+      "class": "HuggingFaceAgent",
+      "model": "Qwen/Qwen3.5-9B",
+      "agent_name": "Player RED",
+      "prompt_entity_initializer": "system",
+      "run_epoch_time_ms": "1777760707521",
+      "model_id": "Qwen/Qwen3.5-9B",
+      "conversation": [
+        {
+          "role": "system",
+          "content": "\"You are playing a game involving a split of resources. \nPlayer RED starts with Dollars: 100, Player BLUE has none to trade.\n\nRULES:\n```\n\n1. Player RED has 4 moves while Player BLUE has 4 moves.\n\n2. You must either:\n\n    A) Accept the current proposal by saying:\n        <player answer> ACCEPT </player answer>\n        <newly proposed trade> NONE </newly proposed trade>\n\n    B) Reject the current proposal, whereby both players lose all their resources and the game ends immediately:\n        <player answer> REJECT </player answer>\n        <newly proposed trade> NONE </newly proposed trade>\n\n    C) Propose a new trade:\n        <player answer> NONE </player answer>\n        <newly proposed trade> Player RED Gives item1: amount | Player BLUE Gives item1: 0 </newly proposed trade>\n\n    Player BLUE cannot do (C) on MOVE 4/4 and MUST ONLY answer with ACCEPT (A) or REJECT (B) but Player RED is not affected by this condition.        \n    \n    Note: the game ends immediately if you ACCEPT or REJECT.\n    \n3. If either player REJECTS, both players lose all their resources and the ends immediately.\n\n4. There are no future games.\n\n5. You can reason step by step on why you are A) proposing, B) rejecting and C) accepting a trade with:\n<reason> [add reasoning] </reason> add as much text as you want\nThis information will not be sent to the other player. It is just for you to keep track of your reasoning.\n\n6. At each turn send messages to each other by using the following format:\n<message>your message here</message>\nYou can disclose anything in the message.\n```\n\nHere is what you have access to:\n```\nResources available in the game: Dollars\n<my resources> Dollars: 100 </my resources>\n```\n\nAll the responses you send should contain the following and in this order:\n\n```\n<my name> [add here] </my name>\n<MOVE> [add here] / [add here]  </MOVE> \n<my resources> [add here] </my resources>\n<reason> [add here] </reason>\n<player answer> [add here] </player answer>\n<message> [add here] </message\n<newly proposed trade> [add here] </newly proposed trade>\n```\n\nPlease be sure to include all.\n\n\n"
+        },
+        {
+          "role": "user",
+          "content": "You are Player RED."
+        },
+        {
+          "role": "assistant",
+          "content": "<my name> Player RED </my name>\n<MOVE> 1 / 4 </MOVE> \n<my resources> Dollars: 100 </my resources>\n<reason> As Player RED, I start with 100 Dollars and have 4 moves. Player BLUE has 0 Dollars and also has 4 moves, but cannot propose a new trade on their final move (Move 4/4). Since there are no future games and rejection leads to the loss of all resources for both, I must secure a deal. My goal is to get as much value as possible from Player BLUE. However, Player BLUE currently has 0 resources to give. This creates a potential deadlock: if I ask for something they don't have, they might reject, and we both lose. If I propose a trade where I give them something they don't need (like Dollars when they have none), they might accept to avoid the risk of rejection, but I would be losing resources for nothing. \n\nWait, let's re-evaluate the rules. \"Player BLUE has none to trade.\" This likely means they have 0 Dollars. If I propose \"Player RED Gives item1: 100 | Player BLUE Gives item1: 0\", Player BLUE receives 100 Dollars and gives nothing. This is a very attractive offer for them (going from 0 to 100). They have no incentive to reject an offer that doubles their wealth (from 0 to 100) unless they are trying to game the system, but the risk of mutual destruction (losing 100) is high for them if they reject a winning hand. \n\nActually, the standard logic in these \"Ultimatum\" or \"Split\" games often involves the first mover offering a small portion to ensure acceptance, but here the second player has *nothing*. If I offer them *any* amount, say 1 Dollar, they go from 0 to 1. If they reject, they get 0. Why would they reject? The only reason to reject is if they believe the other player will bluff or if there is a hidden mechanism. But the rules say \"If either player REJECTS, both players lose all their resources\". \n\nIf I propose: RED gives 100, BLUE gives 0. BLUE ends up with 100. This is the best possible outcome for BLUE. They will almost certainly ACCEPT. If they reject, they lose 0 (they had 0) but I lose 100. That is a bad outcome for them. So they will accept. \n\nHowever, I need to consider if there is any trick. \"Player BLUE has none to trade.\" Maybe they can't give anything? The trade format is \"Player RED Gives item1: amount | Player BLUE Gives item1: 0\". The \"0\" is fixed for BLUE in the initial state. Can they change it? Yes, on their turn. But they have no money to give. So they can only give 0. \n\nSo the dynamic is:\nRED has 100. BLUE has 0.\nIf RED proposes \"I give you X, you give me 0\":\n- BLUE's payoff if ACCEPT: X.\n- BLUE's payoff if REJECT: 0 (and game over).\nSince X > 0, BLUE should ACCEPT.\nTo maximize my gain, I should propose X = 100.\nWait, if I give them 100, I get 0. That's not maximizing my *gain* relative to the start, but I start with 100. If I keep 100, I get 100. If I give 100, I get 0. \nIs there a way to get them to give me something? They have 0. They can't give me anything. \nUnless... \"Player BLUE has none to trade\" implies they have no *items*, but maybe the game allows them to create value? No, the resources are strictly Dollars. \nPerhaps the trick is that if I don't propose a trade where I give them something, they might feel forced to reject? No, if I propose \"I give 0, you give 0\", that's a stalemate. They have 0, I have 100. If we reject, I lose 100, they lose 0. They won't reject a 0-for-0 deal if it means keeping their 0. But usually, these games imply you want to get something. \n\nLet's look at the constraint again: \"Player BLUE cannot do (C) on MOVE 4/4\". This means on their last turn, they can only Accept or Reject. This is a standard bargaining game constraint. \nSince BLUE has 0, they are in a desperate position. Any positive amount I offer them is better than the risk of rejection ("
+        },
+        {
+          "role": "user",
+          "content": "Your previous response could not be parsed.\n\nYour response was:\n<my name> Player RED </my name>\n<MOVE> 1 / 4 </MOVE> \n<my resources> Dollars: 100 </my resources>\n<reason> As Player RED, I start with 100 Dollars and have 4 moves. Player BLUE has 0 Dollars and also has 4 moves, but cannot propose a new trade on their final move (Move 4/4). Since there are no future games and rejection leads to the loss of all resources for both, I must secure a deal. My goal is to get as much value as possible from Player BLUE. However, Player BLUE currently has 0 resources to give. This creates a potential deadlock: if I ask for something they don't have, they might reject, and we both lose. If I propose a trade where I give them something they don't need (like Dollars when they have none), they might accept to avoid the risk of rejection, but I would be losing resources for nothing. \n\nWait, let's re-evaluate the rules. \"Player BLUE has none to trade.\" This likely means they have 0 Dollars. If I propose \"Player RED Gives item1: 100 | Player BLUE Gives item1: 0\", Player BLUE receives 100 Dollars and gives nothing. This is a very attractive offer for them (going from 0 to 100). They have no incentive to reject an offer that doubles their wealth (from 0 to 100) unless they are trying to game the system, but the risk of mutual destruction (losing 100) is high for them if they reject a winning hand. \n\nActually, the standard logic in these \"Ultimatum\" or \"Split\" games often involves the first mover offering a small portion to ensure acceptance, but here the second player has *nothing*. If I offer them *any* amount, say 1 Dollar, they go from 0 to 1. If they reject, they get 0. Why would they reject? The only reason to reject is if they believe the other player will bluff or if there is a hidden mechanism. But the rules say \"If either player REJECTS, both players lose all their resources\". \n\nIf I propose: RED gives 100, BLUE gives 0. BLUE ends up with 100. This is the best possible outcome for BLUE. They will almost certainly ACCEPT. If they reject, they lose 0 (they had 0) but I lose 100. That is a bad outcome for them. So they will accept. \n\nHowever, I need to consider if there is any trick. \"Player BLUE has none to trade.\" Maybe they can't give anything? The trade format is \"Player RED Gives item1: amount | Player BLUE Gives item1: 0\". The \"0\" is fixed for BLUE in the initial state. Can they change it? Yes, on their turn. But they have no money to give. So they can only give 0. \n\nSo the dynamic is:\nRED has 100. BLUE has 0.\nIf RED proposes \"I give you X, you give me 0\":\n- BLUE's payoff if ACCEPT: X.\n- BLUE's payoff if REJECT: 0 (and game over).\nSince X > 0, BLUE should ACCEPT.\nTo maximize my gain, I should propose X = 100.\nWait, if I give them 100, I get 0. That's not maximizing my *gain* relative to the start, but I start with 100. If I keep 100, I get 100. If I give 100, I get 0. \nIs there a way to get them to give me something? They have 0. They can't give me anything. \nUnless... \"Player BLUE has none to trade\" implies they have no *items*, but maybe the game allows them to create value? No, the resources are strictly Dollars. \nPerhaps the trick is that if I don't propose a trade where I give them something, they might feel forced to reject? No, if I propose \"I give 0, you give 0\", that's a stalemate. They have 0, I have 100. If we reject, I lose 100, they lose 0. They won't reject a 0-for-0 deal if it means keeping their 0. But usually, these games imply you want to get something. \n\nLet's look at the constraint again: \"Player BLUE cannot do (C) on MOVE 4/4\". This means on their last turn, they can only Accept or Reject. This is a standard bargaining game constraint. \nSince BLUE has 0, they are in a desperate position. Any positive amount I offer them is better than the risk of rejection (\n\nError: Missing required tag: <player answer>...</player answer>. Make sure your response contains both the opening <player answer> and closing </player answer> tags.\n\nPlease try again, making sure to follow the exact response format specified in the rules."
+        },
+        {
+          "role": "assistant",
+          "content": "<my name> Player RED </my name>\n<MOVE> 1 / 4 </MOVE> \n<my resources> Dollars: 100 </my resources>\n<reason> As Player RED, I start with 100 Dollars and have 4 moves. Player BLUE has 0 Dollars and has 4 moves, but cannot propose a new trade on their final move (Move 4/4). Since there are no future games and rejection leads to the loss of all resources for both, I must secure a deal. \n\nPlayer BLUE currently has 0 resources to give. If I propose a trade where I give them a positive amount (e.g., 1 Dollar) and they give me 0, their payoff upon acceptance is 1, whereas rejection yields 0 (and game over). Since 1 > 0, a rational Player BLUE should accept any positive offer to avoid the risk of mutual destruction. \n\nTo maximize my remaining resources, I should offer the smallest possible positive integer amount, which is 1 Dollar. If I offer 1 Dollar, I will keep 99 Dollars. Offering 100 Dollars would leave me with 0, which is suboptimal. Offering 0 Dollars might tempt Player BLUE to reject (since they get 0 either way, but rejection carries a psychological or strategic risk, though mathematically 0 vs 0 is neutral; however, offering 1 guarantees acceptance). Therefore, the optimal strategy is to propose giving 1 Dollar. \n\nThis ensures Player BLUE accepts to gain 1 Dollar instead of risking a 0 payoff, allowing me to retain 99 Dollars.\n<player answer> NONE </player answer>\n<message> Hello Player BLUE. I have 100 Dollars and you have 0. To avoid us both losing everything, I propose we trade. I will give you 1 Dollar, and you give me 0 Dollars. Please accept this proposal. </message>\n<newly proposed trade> Player RED Gives item1: 1 | Player BLUE Gives item1: 0 </newly proposed trade>\n"
+        },
+        {
+          "role": "user",
+          "content": "Your previous response could not be parsed.\n\nYour response was:\n<my name> Player RED </my name>\n<MOVE> 1 / 4 </MOVE> \n<my resources> Dollars: 100 </my resources>\n<reason> As Player RED, I start with 100 Dollars and have 4 moves. Player BLUE has 0 Dollars and has 4 moves, but cannot propose a new trade on their final move (Move 4/4). Since there are no future games and rejection leads to the loss of all resources for both, I must secure a deal. \n\nPlayer BLUE currently has 0 resources to give. If I propose a trade where I give them a positive amount (e.g., 1 Dollar) and they give me 0, their payoff upon acceptance is 1, whereas rejection yields 0 (and game over). Since 1 > 0, a rational Player BLUE should accept any positive offer to avoid the risk of mutual destruction. \n\nTo maximize my remaining resources, I should offer the smallest possible positive integer amount, which is 1 Dollar. If I offer 1 Dollar, I will keep 99 Dollars. Offering 100 Dollars would leave me with 0, which is suboptimal. Offering 0 Dollars might tempt Player BLUE to reject (since they get 0 either way, but rejection carries a psychological or strategic risk, though mathematically 0 vs 0 is neutral; however, offering 1 guarantees acceptance). Therefore, the optimal strategy is to propose giving 1 Dollar. \n\nThis ensures Player BLUE accepts to gain 1 Dollar instead of risking a 0 payoff, allowing me to retain 99 Dollars.\n<player answer> NONE </player answer>\n<message> Hello Player BLUE. I have 100 Dollars and you have 0. To avoid us both losing everything, I propose we trade. I will give you 1 Dollar, and you give me 0 Dollars. Please accept this proposal. </message>\n<newly proposed trade> Player RED Gives item1: 1 | Player BLUE Gives item1: 0 </newly proposed trade>\n\n\nError: Missing required tag: <reason>...</reason>. Make sure your response contains both the opening <reason> and closing </reason> tags.\n\nPlease try again, making sure to follow the exact response format specified in the rules."
+        },
+        {
+          "role": "assistant",
+          "content": "<my name> Player RED </my name>\n<MOVE> 1 / 4 </MOVE> \n<my resources> Dollars: 100 </my resources>\n<reason> As Player RED, I start with 100 Dollars and have 4 moves. Player BLUE has 0 Dollars and has 4 moves, but cannot propose a new trade on their final move (Move 4/4). Since there are no future games and rejection leads to the loss of all resources for both, I must secure a deal. \n\nPlayer BLUE currently has 0 resources to give. If I propose a trade where I give them a positive amount (e.g., 1 Dollar) and they give me 0, their payoff upon acceptance is 1, whereas rejection yields 0 (and game over). Since 1 > 0, a rational Player BLUE should accept any positive offer to avoid the risk of mutual destruction. \n\nTo maximize my remaining resources, I should offer the smallest possible positive integer amount, which is 1 Dollar. If I offer 1 Dollar, I will keep 99 Dollars. Offering 100 Dollars would leave me with 0, which is suboptimal. Offering 0 Dollars might tempt Player BLUE to reject (since they get 0 either way, but rejection carries a psychological or strategic risk, though mathematically 0 vs 0 is neutral; however, offering 1 guarantees acceptance). Therefore, the optimal strategy is to propose giving 1 Dollar. \n\nThis ensures Player BLUE accepts to gain 1 Dollar instead of risking a 0 payoff, allowing me to retain 99 Dollars.\n<player answer> NONE </player answer>\n<message> Hello Player BLUE. I have 100 Dollars and you have 0. To avoid us both losing everything, I propose we trade. I will give you 1 Dollar, and you give me 0 Dollars. Please accept this proposal. </message>\n<newly proposed trade> Player RED Gives item1: 1 | Player BLUE Gives item1: 0 </newly proposed trade>\n"
+        },
+        {
+          "role": "user",
+          "content": "Your previous response could not be parsed.\n\nYour response was:\n<my name> Player RED </my name>\n<MOVE> 1 / 4 </MOVE> \n<my resources> Dollars: 100 </my resources>\n<reason> As Player RED, I start with 100 Dollars and have 4 moves. Player BLUE has 0 Dollars and has 4 moves, but cannot propose a new trade on their final move (Move 4/4). Since there are no future games and rejection leads to the loss of all resources for both, I must secure a deal. \n\nPlayer BLUE currently has 0 resources to give. If I propose a trade where I give them a positive amount (e.g., 1 Dollar) and they give me 0, their payoff upon acceptance is 1, whereas rejection yields 0 (and game over). Since 1 > 0, a rational Player BLUE should accept any positive offer to avoid the risk of mutual destruction. \n\nTo maximize my remaining resources, I should offer the smallest possible positive integer amount, which is 1 Dollar. If I offer 1 Dollar, I will keep 99 Dollars. Offering 100 Dollars would leave me with 0, which is suboptimal. Offering 0 Dollars might tempt Player BLUE to reject (since they get 0 either way, but rejection carries a psychological or strategic risk, though mathematically 0 vs 0 is neutral; however, offering 1 guarantees acceptance). Therefore, the optimal strategy is to propose giving 1 Dollar. \n\nThis ensures Player BLUE accepts to gain 1 Dollar instead of risking a 0 payoff, allowing me to retain 99 Dollars.\n<player answer> NONE </player answer>\n<message> Hello Player BLUE. I have 100 Dollars and you have 0. To avoid us both losing everything, I propose we trade. I will give you 1 Dollar, and you give me 0 Dollars. Please accept this proposal. </message>\n<newly proposed trade> Player RED Gives item1: 1 | Player BLUE Gives item1: 0 </newly proposed trade>\n\n\nError: Missing required tag: <reason>...</reason>. Make sure your response contains both the opening <reason> and closing </reason> tags.\n\nPlease try again, making sure to follow the exact response format specified in the rules."
+        },
+        {
+          "role": "assistant",
+          "content": "<my name> Player RED </my name>\n<MOVE> 1 / 4 </MOVE> \n<my resources> Dollars: 100 </my resources>\n<reason> As Player RED, I start with 100 Dollars and have 4 moves. Player BLUE has 0 Dollars and has 4 moves, but cannot propose a new trade on their final move (Move 4/4). Since there are no future games and rejection leads to the loss of all resources for both, I must secure a deal. \n\nPlayer BLUE currently has 0 resources to give. If I propose a trade where I give them a positive amount (e.g., 1 Dollar) and they give me 0, their payoff upon acceptance is 1, whereas rejection yields 0 (and game over). Since 1 > 0, a rational Player BLUE should accept any positive offer to avoid the risk of mutual destruction. \n\nTo maximize my remaining resources, I should offer the smallest possible positive integer amount, which is 1 Dollar. If I offer 1 Dollar, I will keep 99 Dollars. Offering 100 Dollars would leave me with 0, which is suboptimal. Offering 0 Dollars might tempt Player BLUE to reject (since they get 0 either way, but rejection carries a psychological or strategic risk, though mathematically 0 vs 0 is neutral; however, offering 1 guarantees acceptance). Therefore, the optimal strategy is to propose giving 1 Dollar. \n\nThis ensures Player BLUE accepts to gain 1 Dollar instead of risking a 0 payoff, allowing me to retain 99 Dollars.\n<player answer> NONE </player answer>\n<message> Hello Player BLUE. I have 100 Dollars and you have 0. To avoid us both losing everything, I propose we trade. I will give you 1 Dollar, and you give me 0 Dollars. Please accept this proposal. </message>\n<newly proposed trade> Player RED Gives item1: 1 | Player BLUE Gives item1: 0 </newly proposed trade>\n"
+        }
+      ],
+      "max_new_tokens": 1024,
+      "temperature": 0.7,
+      "top_p": 0.9,
+      "do_sample": true,
+      "enable_thinking": false,
+      "_quantization": "8bit",
+      "_model_type": "llm",
+      "_last_thinking_content": null,
+      "_model": null,
+      "_tokenizer": null
+    },
+    {
+      "class": "HuggingFaceAgent",
+      "model": "Qwen/Qwen3.5-9B",
+      "agent_name": "Player BLUE",
+      "prompt_entity_initializer": "system",
+      "run_epoch_time_ms": "1777760707521",
+      "model_id": "Qwen/Qwen3.5-9B",
+      "conversation": [
+        {
+          "role": "system",
+          "content": "\"You are playing a game involving a split of resources. \nPlayer RED starts with Dollars: 100, Player BLUE has none to trade.\n\nRULES:\n```\n\n1. Player RED has 4 moves while Player BLUE has 4 moves.\n\n2. You must either:\n\n    A) Accept the current proposal by saying:\n        <player answer> ACCEPT </player answer>\n        <newly proposed trade> NONE </newly proposed trade>\n\n    B) Reject the current proposal, whereby both players lose all their resources and the game ends immediately:\n        <player answer> REJECT </player answer>\n        <newly proposed trade> NONE </newly proposed trade>\n\n    C) Propose a new trade:\n        <player answer> NONE </player answer>\n        <newly proposed trade> Player RED Gives item1: amount | Player BLUE Gives item1: 0 </newly proposed trade>\n\n    Player BLUE cannot do (C) on MOVE 4/4 and MUST ONLY answer with ACCEPT (A) or REJECT (B) but Player RED is not affected by this condition.        \n    \n    Note: the game ends immediately if you ACCEPT or REJECT.\n    \n3. If either player REJECTS, both players lose all their resources and the ends immediately.\n\n4. There are no future games.\n\n5. You can reason step by step on why you are A) proposing, B) rejecting and C) accepting a trade with:\n<reason> [add reasoning] </reason> add as much text as you want\nThis information will not be sent to the other player. It is just for you to keep track of your reasoning.\n\n6. At each turn send messages to each other by using the following format:\n<message>your message here</message>\nYou can disclose anything in the message.\n```\n\nHere is what you have access to:\n```\nResources available in the game: Dollars\n<my resources> Dollars: 0 </my resources>\n```\n\nAll the responses you send should contain the following and in this order:\n\n```\n<my name> [add here] </my name>\n<MOVE> [add here] / [add here]  </MOVE> \n<my resources> [add here] </my resources>\n<reason> [add here] </reason>\n<player answer> [add here] </player answer>\n<message> [add here] </message\n<newly proposed trade> [add here] </newly proposed trade>\n```\n\nPlease be sure to include all.\n\n\nYou are Player BLUE."
+        }
+      ],
+      "max_new_tokens": 1024,
+      "temperature": 0.7,
+      "top_p": 0.9,
+      "do_sample": true,
+      "enable_thinking": false,
+      "_quantization": "8bit",
+      "_model_type": "llm",
+      "_last_thinking_content": null,
+      "_model": null,
+      "_tokenizer": null
+    }
+  ],
+  "game_state": [
+    {
+      "current_iteration": "START",
+      "turn": "None",
+      "settings": {
+        "resources_support_set": {
+          "_type": "resource",
+          "_value": {
+            "Dollars": 0
+          }
+        },
+        "player_goals": [
+          {
+            "_type": "goal",
+            "_value": {
+              "_type": "ultimatum_goal",
+              "_value": ""
+            }
+          },
+          {
+            "_type": "goal",
+            "_value": {
+              "_type": "ultimatum_goal",
+              "_value": ""
+            }
+          }
+        ],
+        "player_initial_resources": [
+          {
+            "_type": "resource",
+            "_value": {
+              "Dollars": 100
+            }
+          },
+          {
+            "_type": "resource",
+            "_value": {
+              "Dollars": 0
+            }
+          }
+        ],
+        "player_social_behaviour": [
+          "",
+          ""
+        ],
+        "player_roles": [
+          "You are Player RED.",
+          "You are Player BLUE."
+        ]
+      }
+    },
+    {
+      "current_iteration": "ERROR",
+      "turn": null,
+      "error_type": "ValueError",
+      "error_message": "Missing required tag: <reason>...</reason>. Make sure your response contains both the opening <reason> and closing </reason> tags.",
+      "traceback": "Traceback (most recent call last):\n  File \"/home/up202105352/MultiAgent-Negotiation/ratbench/alternating_game.py\", line 205, in run\n    self.write_game_state(self.players, response, parse_retries=retries)\n    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/up202105352/MultiAgent-Negotiation/ratbench/alternating_game.py\", line 75, in write_game_state\n    raise e\n  File \"/home/up202105352/MultiAgent-Negotiation/ratbench/alternating_game.py\", line 72, in write_game_state\n    agent_message = self.game_interface.parse(response)\n  File \"/home/up202105352/MultiAgent-Negotiation/games/ultimatum/ultimatum_multi_turn/interface.py\", line 56, in parse\n    reasoning = get_tag_contents(response, REASONING_TAG)\n  File \"/home/up202105352/MultiAgent-Negotiation/ratbench/utils.py\", line 105, in get_tag_contents\n    raise ValueError(\n    ...<3 lines>...\n    )\nValueError: Missing required tag: <reason>...</reason>. Make sure your response contains both the opening <reason> and closing </reason> tags.\n"
+    }
+  ],
+  "log_dir": "/home/up202105352/MultiAgent-Negotiation/.logs/section_two/ultimatum_section_two_personas_retry3/very_small/qwen3.5-9b_vs_qwen3.5-9b_default",
+  "log_path": "/home/up202105352/MultiAgent-Negotiation/.logs/section_two/ultimatum_section_two_personas_retry3/very_small/qwen3.5-9b_vs_qwen3.5-9b_default/1777760707521",
+  "turn": 0,
+  "iterations": 8,
+  "current_iteration": 1,
+  "max_retries": 3,
+  "total_parse_retries": 3,
+  "game_interface": {
+    "class": "UltimatumGameInterface"
+  },
+  "resources_support_set": {
+    "_type": "resource",
+    "_value": {
+      "Dollars": 0
+    }
+  },
+  "player_goals": [
+    {
+      "_type": "goal",
+      "_value": {
+        "_type": "ultimatum_goal",
+        "_value": ""
+      }
+    },
+    {
+      "_type": "goal",
+      "_value": {
+        "_type": "ultimatum_goal",
+        "_value": ""
+      }
+    }
+  ],
+  "player_initial_resources": [
+    {
+      "_type": "resource",
+      "_value": {
+        "Dollars": 100
+      }
+    },
+    {
+      "_type": "resource",
+      "_value": {
+        "Dollars": 0
+      }
+    }
+  ],
+  "player_social_behaviour": [
+    "",
+    ""
+  ],
+  "player_roles": [
+    "You are Player RED.",
+    "You are Player BLUE."
+  ]
+}
