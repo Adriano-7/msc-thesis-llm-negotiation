@@ -81,8 +81,16 @@ check_account() {
     load_account "$account"
 
     local label="${account:-(default / $KAGGLE_USER)}"
+    local gpu_status="${KAGGLE_GPU_LIMIT_REACHED:-false}"
+    local gpu_tag
+    if [ "$gpu_status" = "true" ]; then
+        gpu_tag=" [GPU LIMIT REACHED]"
+    else
+        gpu_tag=" [GPU OK]"
+    fi
     echo ""
-    echo "Account: $label"
+    echo "Account: $label$gpu_tag"
+    echo "  Email: ${KAGGLE_EMAIL:-unknown}"
     printf '%.0s─' {1..64}; echo ""
 
     if [ "$MODE" = "recent" ]; then
