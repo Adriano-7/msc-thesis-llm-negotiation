@@ -346,15 +346,11 @@ if not incomplete_df.empty:
     st.subheader("Error Breakdown (Incomplete Games)")
 
     with_error = incomplete_df[incomplete_df["Error Type"] != ""]
-    without_error = incomplete_df[incomplete_df["Error Type"] == ""]
 
-    ec1, ec2 = st.columns(2)
-    ec1.metric("With Captured Error", len(with_error))
-    ec2.metric("Unknown (pre-fix runs)", len(without_error))
+    st.metric("With Captured Error", len(with_error))
 
     # Error type counts grouped by section / game / error type
     display_df = incomplete_df.copy()
-    display_df["Error Type"] = display_df["Error Type"].replace("", "Unknown")
     error_counts = (
         display_df.groupby(["Section", "Game", "Error Type"])
         .size()
