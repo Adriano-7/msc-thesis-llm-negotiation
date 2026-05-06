@@ -119,7 +119,7 @@ st.title("Kaggle Runs")
 
 col_size, col_btn, _ = st.columns([2, 1, 6], vertical_alignment="bottom")
 with col_size:
-    page_size = st.number_input("Kernels per account", min_value=1, max_value=50, value=5, step=1)
+    page_size = st.number_input("Kernels per account", min_value=1, max_value=50, value=3, step=1)
 with col_btn:
     if st.button("⟳ Refresh", use_container_width=True):
         st.cache_data.clear()
