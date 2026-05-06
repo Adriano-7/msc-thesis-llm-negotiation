@@ -15,7 +15,7 @@ Usage:
 
 import re
 import torch
-from transformers import AutoConfig, AutoModelForCausalLM, AutoModelForImageTextToText, AutoTokenizer, BitsAndBytesConfig
+from transformers import AutoModelForCausalLM, AutoModelForImageTextToText,  AutoTokenizer, BitsAndBytesConfig
 from ratbench.agents.agents import Agent
 from ratbench.agents.agent_behaviours import SelfCheckingAgent, SelfRefineAgent
 import time
@@ -101,16 +101,6 @@ def _load_model(model_id: str, quantization=None, model_type="llm", dtype=torch.
             )
         else:
             load_kwargs["dtype"] = dtype
-
-        # Some models (e.g. Ministral) ship with a built-in FP8 quantization_config
-        # in their config.json. Transformers refuses to merge that with a
-        # BitsAndBytesConfig, so we strip it out before loading when we're
-        # applying our own quantization.
-        if quantization in ("4bit", "8bit"):
-            model_config = AutoConfig.from_pretrained(model_id, trust_remote_code=True)
-            if getattr(model_config, "quantization_config", None) is not None:
-                model_config.quantization_config = None
-                load_kwargs["config"] = model_config
 
         AutoClass = AutoModelForImageTextToText if model_type == "vlm" else AutoModelForCausalLM
         model = AutoClass.from_pretrained(model_id, **load_kwargs)
