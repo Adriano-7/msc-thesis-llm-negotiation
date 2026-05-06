@@ -76,7 +76,10 @@ def _load_model(model_id: str, quantization=None, model_type="llm", dtype=torch.
     if cache_key not in _SHARED_MODELS:
         quant_label = f" [{quantization}]" if quantization else ""
         print(f"\n[HuggingFaceAgent] Loading {model_id}{quant_label} … (one-time)")
-        tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
+        tokenizer_kwargs = dict(trust_remote_code=True)
+        if "mistral" in model_id.lower():
+            tokenizer_kwargs["fix_mistral_regex"] = True
+        tokenizer = AutoTokenizer.from_pretrained(model_id, **tokenizer_kwargs)
 
         load_kwargs = dict(
             device_map=device_map,
