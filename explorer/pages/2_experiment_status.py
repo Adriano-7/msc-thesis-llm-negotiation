@@ -1,6 +1,7 @@
 import sys
 import os
 import json
+import re as _re
 
 sys.path.append("../")
 sys.path.append(".")
@@ -290,6 +291,29 @@ SECTION_MAP = {
 CANONICAL_SIZES = ["very_small", "small", "medium"]
 GAME_ORDER = ["buysell", "trading", "ultimatum"]
 
+def _is_self_play(pair: str) -> bool:
+    parts = pair.split("_vs_", 1)
+    return len(parts) == 2 and parts[0].strip() == parts[1].strip()
+
+
+def _mark_self_play_rows(html: str, self_play_pairs: set) -> str:
+    """Add class="self-play" to <tr> elements whose row-header matches a self-play pair."""
+    return _re.sub(
+        r"<tr>(\s*<th[^>]*>)([^<]*)(</th>)",
+        lambda m: (
+            f'<tr class="self-play">{m.group(1)}{m.group(2)}{m.group(3)}'
+            if m.group(2) in self_play_pairs
+            else m.group(0)
+        ),
+        html,
+    )
+
+
+def _self_play_row_style(row: pd.Series) -> list[str]:
+    color = "background-color: #eef2f7" if _is_self_play(str(row.get("Pair", ""))) else ""
+    return [color] * len(row)
+
+
 GROUPED_TABLE_CSS = """
 <style>
 .grouped-status-table { border-collapse: collapse; font-size: 0.85rem; margin-bottom: 1rem; }
@@ -300,6 +324,8 @@ GROUPED_TABLE_CSS = """
 .grouped-status-table thead tr:first-child th { background: #e8eef6; font-size: 0.95rem; }
 .grouped-status-table tbody th { text-align: left; font-weight: 500; background: #fafafa; }
 .grouped-status-table tbody td:empty::before { content: "-"; color: #bbb; }
+.grouped-status-table tbody tr.self-play th,
+.grouped-status-table tbody tr.self-play td { background-color: #eef2f7; }
 </style>
 """
 st.markdown(GROUPED_TABLE_CSS, unsafe_allow_html=True)
@@ -332,12 +358,18 @@ for size in CANONICAL_SIZES:
 
     pivoted = pivoted.fillna("-")
 
+    self_play_pairs = {p for p in pivoted.index if _is_self_play(p)}
     html = pivoted.to_html(classes="grouped-status-table", border=0, escape=False)
+    html = _mark_self_play_rows(html, self_play_pairs)
     st.markdown(html, unsafe_allow_html=True)
 
 st.markdown("---")
 st.subheader("Flat Status Table")
-st.dataframe(grouped, use_container_width=True, hide_index=True)
+st.dataframe(
+    grouped.style.apply(_self_play_row_style, axis=1),
+    use_container_width=True,
+    hide_index=True,
+)
 
 # --- Error Breakdown (incomplete games only) ---
 incomplete_df = real_runs[~real_runs["Completed"]]
