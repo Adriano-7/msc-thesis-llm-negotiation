@@ -877,14 +877,32 @@ GPU partitions have **no internet**, so `TRANSFORMERS_OFFLINE=1` and `HF_DATASET
 | medium | `google/gemma-3-27b-it`, `mistralai/Mistral-Small-3.2-24B-Instruct-2506` (vlm, 8bit), `Qwen/Qwen3.5-27B` |
 | big | `meta-llama/Llama-3.3-70B-Instruct` (4bit), `Qwen/Qwen2.5-72B-Instruct` |
 
-To download additional models, get a dev-x86 session with internet:
+To download additional models, get a dev-x86 session with internet and run `download_models.py`. The script reads the `_shared.models_<size>` lists from `configs/experiments.yaml` and snapshots each repo into `$HF_HOME`.
+
 ```bash
+# 1. Get an interactive dev-x86 shell (internet enabled, 4h limit)
 srun --account=f202500007hpcvlabuportox --partition=dev-x86 --nodes=1 --time=4:00:00 --pty bash
+
+# 2. Set HF cache, activate env, cd to repo
 export HF_HOME=/projects/F202500007HPCVLABUPORTO/amachado.up/huggingface
 source /projects/F202500007HPCVLABUPORTO/amachado.up/miniconda3/etc/profile.d/conda.sh
 conda activate /projects/F202500007HPCVLABUPORTO/amachado.up/envs/negotiation
-python -c "from transformers import AutoTokenizer, AutoModelForCausalLM; AutoTokenizer.from_pretrained('model/name'); AutoModelForCausalLM.from_pretrained('model/name', torch_dtype='auto', device_map='cpu')"
+cd /projects/F202500007HPCVLABUPORTO/amachado.up/MultiAgent-Negotiation
+
+# 3. (Optional) preview which models would be fetched
+python download_models.py very_small --dry-run
+
+# 4. Download a size group: very_small | small | medium | big
+python download_models.py very_small
 ```
+
+Notes:
+- **Gated repos** (Llama, Ministral, …): accept the license on the model's HF page first, with the same account whose token is stored in `$HF_HOME/token`. If missing, run `huggingface-cli login` from the dev-x86 shell.
+- The dev-x86 partition has a 4h limit; large groups (`medium`, `big`) may need to be split across sessions or run inside `screen`/`tmux` on the login node so the SSH session can drop without killing the download.
+- To grab a single ad-hoc model outside the config, fall back to the one-liner:
+  ```bash
+  python -c "from huggingface_hub import snapshot_download; snapshot_download('org/model')"
+  ```
 
 ### Running Experiments
 

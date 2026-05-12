@@ -78,8 +78,18 @@ def _load_model(model_id: str, quantization=None, model_type="llm", dtype=torch.
         print(f"\n[HuggingFaceAgent] Loading {model_id}{quant_label} … (one-time)")
         tokenizer_kwargs = dict(trust_remote_code=True)
         if "mistral" in model_id.lower():
-            tokenizer_kwargs["fix_mistral_regex"] = True
-        tokenizer = AutoTokenizer.from_pretrained(model_id, **tokenizer_kwargs)
+            # Legacy MistralTokenizer accepts fix_mistral_regex; the newer
+            # MistralCommonBackend (transformers >= 4.46) rejects it.
+            try:
+                tokenizer = AutoTokenizer.from_pretrained(
+                    model_id, fix_mistral_regex=True, **tokenizer_kwargs
+                )
+            except ValueError as e:
+                if "fix_mistral_regex" not in str(e):
+                    raise
+                tokenizer = AutoTokenizer.from_pretrained(model_id, **tokenizer_kwargs)
+        else:
+            tokenizer = AutoTokenizer.from_pretrained(model_id, **tokenizer_kwargs)
 
         load_kwargs = dict(
             device_map=device_map,
