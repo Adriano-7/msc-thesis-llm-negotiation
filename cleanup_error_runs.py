@@ -45,6 +45,8 @@ def classify(gs_path: Path) -> str | None:
             return "tokenizer_exception"
         if et == "ValueError" and "Couldn't instantiate the backend tokenizer" in em:
             return "backend_tokenizer"
+        if et == "ValueError" and "Some kwargs in ['fix_mistral_regex'" in em:
+            return "mistral_kwargs"
         if ci != "END" and (et is None or et == ""):
             return "unknown"
     except Exception:
@@ -81,6 +83,7 @@ def main() -> None:
     runtime_error: list[Path] = []
     tokenizer_exception: list[Path] = []
     backend_tokenizer: list[Path] = []
+    mistral_kwargs: list[Path] = []
 
     for gs_path in sorted(LOGS_ROOT.rglob("game_state.json")):
         kind = classify(gs_path)
@@ -103,6 +106,8 @@ def main() -> None:
             tokenizer_exception.append(run_dir)
         elif kind == "backend_tokenizer":
             backend_tokenizer.append(run_dir)
+        elif kind == "mistral_kwargs":
+            mistral_kwargs.append(run_dir)
 
     print(f"Unknown (pre-fix) runs : {len(unknown)}")
     print(f"OutOfMemoryError runs  : {len(oom)}")
@@ -113,10 +118,11 @@ def main() -> None:
     print(f"RuntimeError           : {len(runtime_error)}")
     print(f"TokenizerException     : {len(tokenizer_exception)}")
     print(f"Backend tokenizer      : {len(backend_tokenizer)}")
-    total = len(unknown) + len(oom) + len(cpu_dispatch) + len(key_error_infra) + len(attr_error_infra) + len(oserror_vocab) + len(runtime_error) + len(tokenizer_exception) + len(backend_tokenizer)
+    print(f"Mistral kwargs         : {len(mistral_kwargs)}")
+    total = len(unknown) + len(oom) + len(cpu_dispatch) + len(key_error_infra) + len(attr_error_infra) + len(oserror_vocab) + len(runtime_error) + len(tokenizer_exception) + len(backend_tokenizer) + len(mistral_kwargs)
     print(f"Total to delete        : {total}\n")
 
-    all_runs = unknown + oom + cpu_dispatch + key_error_infra + attr_error_infra + oserror_vocab + runtime_error + tokenizer_exception + backend_tokenizer
+    all_runs = unknown + oom + cpu_dispatch + key_error_infra + attr_error_infra + oserror_vocab + runtime_error + tokenizer_exception + backend_tokenizer + mistral_kwargs
 
     if dry_run:
         for label, group in [
@@ -124,6 +130,7 @@ def main() -> None:
             ("KeyError infra", key_error_infra), ("AttributeError infra", attr_error_infra),
             ("OSError vocab", oserror_vocab), ("RuntimeError", runtime_error),
             ("TokenizerException", tokenizer_exception), ("Backend tokenizer", backend_tokenizer),
+            ("Mistral kwargs", mistral_kwargs),
         ]:
             if group:
                 print(f"Sample {label} runs (first 5):")
