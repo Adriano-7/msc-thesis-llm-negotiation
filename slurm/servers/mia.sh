@@ -13,7 +13,7 @@
 SLURM_PARTITION="${PARTITION:-normal}"
 SLURM_QOS="${QOS:-gpu_batch}"
 SLURM_ACCOUNT="${ACCOUNT:-}"              # MIA does not require accounts
-SLURM_TIME="${TIME:-16:00:00}"
+SLURM_TIME="${TIME:-12:00:00}"
 SLURM_CPUS_PER_TASK="${CPUS:-2}"
 SLURM_MEM="${MEM:-8G}"
 SLURM_GPU_DIRECTIVE="--gres=gpu:${GPUS:-2}"   # MIA uses --gres syntax
