@@ -42,9 +42,9 @@ In the table below you'll find a short description with the main characteritics 
 
 | QoS policy | description |
 | --- | --- |
-| `gpu` | allows jobs that request up to 2 gpus, both interactive (`srun`) and batch (`sbatch`); max time per job is 3 hours. |
-| `gpu_batch` | allows **batch jobs only** (`sbatch`) with requests of up to 2 gpus; max time per job is 16 hours. |
-| `cpu` | allows both interactive (`srun`) and batch (`sbatch`) without gpus; max time per job is 30 minutes. |
+| `gpu` | allows jobs that request up to 2 gpus, both interactive (`srun`) and batch (`sbatch`); max time per job is 3 hours; only 1 job may be submitted/running at a time. |
+| `gpu_batch` | allows **batch jobs only** (`sbatch`) with requests of up to 1 gpu; max time per job is 12 hours; each user is capped at 1 gpu total across all running jobs, and up to 10 submitted jobs. |
+| `cpu` | allows both interactive (`srun`) and batch (`sbatch`) without gpus; max time per job is 30 minutes; up to 3 submitted jobs per user. |
 
 ## Specific Limits
 
@@ -54,10 +54,10 @@ Based on the QoS policies, user jobs are strictly capped at the following resour
 | --- | --- | --- |
 | **CPUs** | 2 CPUs per task | Job requests for > 2 CPUs (e.g., `--cpus-per-task=3`) will be rejected. |
 | **Memory** | 8 GB | Job requests exceeding 8192 MB (e.g., `--mem=8193`) will fail. |
-| **GPUs** | 2 GPUs | Allowed only under `gpu` and `gpu_batch` QoS policies. |
+| **GPUs** | 2 GPUs (`gpu` QoS) / 1 GPU (`gpu_batch` QoS) | Only the `gpu` and `gpu_batch` QoS policies permit GPU allocation. Under `gpu_batch`, a user may hold at most 1 GPU total across all running jobs. |
 | **Time (`cpu`)** | 30 minutes | Maximum execution time for the `cpu` QoS. |
 | **Time (`gpu`)** | 3 hours | Maximum execution time for the `gpu` QoS. |
-| **Time (`gpu_batch`)** | 16 hours | Maximum execution time for the `gpu_batch` QoS. |
+| **Time (`gpu_batch`)** | 12 hours | Maximum execution time for the `gpu_batch` QoS. |
 
 ## Users and SLURM accounts
 
@@ -65,9 +65,11 @@ In the table below you'll find which QoS policies are allowed under each partiti
 
 | Partition | Allowed QoS policies | Allowed SLURM accounts |
 | --- | --- | --- |
-| `teach` | `gpu`, `gpu_batch`, `cpu` | `faculty` |
-| `normal` | `gpu_batch`, `cpu` | `faculty`,`students` |
-| `fast` | `cpu` | `faculty`,`students` |
+| `teach` | `gpu` | `faculty` |
+| `normal` | `gpu_batch`, `cpu` | all accounts |
+| `fast` | `cpu` | all accounts |
+
+> **Note:** interactive jobs (`srun`) are **disabled on the `normal` partition** — attempting `srun -p normal ...` will be rejected with *"Interactive jobs (srun) are not allowed on partition 'normal'. Please use sbatch."* Since `teach` is faculty-only and `fast` allows only the `cpu` QoS (no GPUs), students currently have **no way to run interactive GPU jobs** and must use `sbatch` for any GPU work.
 
 ## Job submission examples
 

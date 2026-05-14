@@ -1,9 +1,9 @@
 # ============================================================
 # MIA HPC Server Profile — University of Porto MSc AI cluster
 #
-# Hardware: 1-2× NVIDIA L40S (48 GB VRAM) per node
+# Hardware: 2-3× NVIDIA L40S (48 GB VRAM) per node
 # Partitions: teach, normal, fast
-# QoS: gpu_batch (batch, ≤2 GPUs, ≤16 h), gpu (interactive, ≤3 h)
+# QoS: gpu_batch (batch, ≤1 GPU per job & per user, ≤12 h), gpu (interactive, ≤2 GPUs, ≤3 h, faculty/teach only)
 #
 # All variables can be overridden at launch time:
 #   GPUS=1 MEM=32G SERVER=mia bash slurm/launch.sh
@@ -16,7 +16,7 @@ SLURM_ACCOUNT="${ACCOUNT:-}"              # MIA does not require accounts
 SLURM_TIME="${TIME:-12:00:00}"
 SLURM_CPUS_PER_TASK="${CPUS:-2}"
 SLURM_MEM="${MEM:-8G}"
-SLURM_GPU_DIRECTIVE="--gres=gpu:${GPUS:-2}"   # MIA uses --gres syntax
+SLURM_GPU_DIRECTIVE="--gres=gpu:${GPUS:-1}"   # MIA uses --gres syntax; gpu_batch QoS caps at 1 GPU
 SLURM_NODELIST="${NODELIST:-}"
 
 # ── Environment setup ────────────────────────────────────────
