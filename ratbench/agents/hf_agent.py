@@ -183,10 +183,14 @@ class HuggingFaceAgent(Agent):
     def chat(self) -> str:
         self._ensure_loaded()
         messages = [{"role": m["role"], "content": m["content"]} for m in self.conversation]
-        
+
+        # Mistral (and some other) tokenizers reject assistant messages with empty
+        # content — drop them so the conversation remains valid.
+        messages = [m for m in messages if m["role"] != "assistant" or m.get("content")]
+
         if "gemma" in self.model_id.lower() and messages and messages[0]["role"] == "system":
             sys_content = messages.pop(0)["content"]
-            
+
             if messages and messages[0]["role"] == "user":
                 messages[0]["content"] = f"{sys_content}\n\n{messages[0]['content']}"
             else:
