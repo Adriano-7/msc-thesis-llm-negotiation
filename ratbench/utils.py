@@ -99,6 +99,44 @@ def factory_agent(name, agent_name, strategy="default", **kwargs):
             f"or a HuggingFace model_id (org/model-name)."
         )
 
+def build_party(spec, agent_name, strategy="default", **defaults):
+    """Build a negotiating party for one player slot.
+
+    A party is either a single agent or a deliberating team:
+
+    - If *spec* carries a ``"team"`` block, returns a ``NegotiationTeamAgent``
+      whose members are built from ``spec["team"]["members"]``. The team's
+      members all share *agent_name* so their conversation shape matches the
+      slot (P1 vs P2 differ — see ``HuggingFaceAgent.init_agent``).
+    - Otherwise *spec* is a normalized model dict and this delegates to
+      :func:`factory_agent`, forwarding the per-model fields.
+
+    ``strategy`` and ``defaults`` (e.g. ``rate_limit_delay``) apply to the
+    single-agent path; teams always run their members with the default
+    strategy.
+    """
+    team = spec.get("team") if isinstance(spec, dict) else None
+    if team:
+        from ratbench.agents.negotiation_team_agent import NegotiationTeamAgent
+
+        return NegotiationTeamAgent(
+            agent_name=agent_name,
+            member_specs=team["members"],
+            discussion_rounds=team.get("discussion_rounds", 2),
+        )
+
+    return factory_agent(
+        spec["id"],
+        agent_name=agent_name,
+        strategy=strategy,
+        quantization=spec.get("quantization"),
+        model_type=spec.get("model_type", "llm"),
+        enable_thinking=spec.get("enable_thinking"),
+        rate_limit_delay=spec.get("rate_limit_delay"),
+        **defaults,
+    )
+
+
 def get_tag_contents(response, interest_tag):
     start_index, end_index, length = get_tag_indices(response, interest_tag)
     if start_index == -1 or end_index == -1:

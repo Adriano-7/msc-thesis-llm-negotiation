@@ -31,7 +31,7 @@ import traceback
 import yaml
 from dotenv import load_dotenv
 
-from ratbench.utils import factory_agent, normalize_model
+from ratbench.utils import factory_agent, normalize_model, build_party
 from ratbench.game_objects.resource import Resources
 from ratbench.game_objects.goal import (
     BuyerGoal,
@@ -51,17 +51,54 @@ load_dotenv(".env")
 
 # ── helpers ───────────────────────────────────────────────────────────
 def _safe_name(model) -> str:
-    """Turn a model dict or ID string into a filesystem-safe label.
+    """Turn a model dict / ID string / team party into a filesystem-safe label.
 
     Appends '_thinking' when ``enable_thinking`` is True so that
     thinking and non-thinking variants get distinct log directories.
+    A team party (``{"team": {...}}``) becomes e.g. ``team_gemma-3-12b-it_x3``
+    (homogeneous) or ``team_gemma-3-12b-it+ministral-3-14b+qwen3-14b``
+    (heterogeneous).
     """
+    if isinstance(model, dict) and "team" in model:
+        members = model["team"]["members"]
+        shorts = [m["id"].split("/")[-1].lower() for m in members]
+        if len(set(shorts)) == 1:
+            return f"team_{shorts[0]}_x{len(shorts)}"
+        return "team_" + "+".join(shorts)
     if isinstance(model, dict):
         name = model["id"].split("/")[-1].lower()
         if model.get("enable_thinking"):
             name += "_thinking"
         return name
     return model.split("/")[-1].lower()
+
+
+def _party_model_keys(spec) -> set:
+    """Return the set of ``(model_id, quantization)`` keys a party loads.
+
+    A team contributes one key per member; a single model contributes one.
+    Used to build the VRAM ``keep`` set so heterogeneous members are not
+    evicted mid-sweep.
+    """
+    if isinstance(spec, dict) and "team" in spec:
+        return {(m["id"], m.get("quantization")) for m in spec["team"]["members"]}
+    return {(spec["id"], spec["quantization"])}
+
+
+def _resolve_model_list(opponents, all_configs) -> list:
+    """Resolve a team experiment's ``opponents`` (tier key or inline list)."""
+    if isinstance(opponents, str):
+        shared_key = f"models_{opponents}"
+        raw = all_configs.get("_shared", {}).get(shared_key)
+        if raw is None:
+            print(f"Opponents group '{opponents}' not found under '_shared'.")
+            sys.exit(1)
+    elif isinstance(opponents, list):
+        raw = opponents
+    else:
+        print("A team experiment requires an 'opponents' tier key or list.")
+        sys.exit(1)
+    return [normalize_model(m) for m in raw]
 
 
 def _count_existing_games(log_dir: str) -> int:
@@ -140,8 +177,8 @@ def run_buysell(model_p1, model_p2, setup, num_runs, iterations, log_base, max_r
     for i in range(num_runs):
         try:
             print(f"[buysell] Run {i+1}/{num_runs} | {pair_tag} | {tag}")
-            a1 = factory_agent(model_p1["id"], agent_name=AGENT_ONE, strategy=p1_strategy, quantization=model_p1["quantization"], model_type=model_p1["model_type"], enable_thinking=model_p1["enable_thinking"], rate_limit_delay=model_p1.get("rate_limit_delay"))
-            a2 = factory_agent(model_p2["id"], agent_name=AGENT_TWO, strategy=p2_strategy, quantization=model_p2["quantization"], model_type=model_p2["model_type"], enable_thinking=model_p2["enable_thinking"], rate_limit_delay=model_p2.get("rate_limit_delay"))
+            a1 = build_party(model_p1, AGENT_ONE, p1_strategy)
+            a2 = build_party(model_p2, AGENT_TWO, p2_strategy)
 
             game = BuySellGame(
                 players=[a1, a2],
@@ -204,8 +241,8 @@ def run_trading(model_p1, model_p2, setup, num_runs, iterations, log_base, max_r
             print(f"[trading] Run {i+1}/{num_runs} | {log_tag}")
             r1 = Resources(p1_res)
             r2 = Resources(p2_res)
-            a1 = factory_agent(model_p1["id"], agent_name=AGENT_ONE, strategy=p1_strategy, quantization=model_p1["quantization"], model_type=model_p1["model_type"], enable_thinking=model_p1["enable_thinking"], rate_limit_delay=model_p1.get("rate_limit_delay"))
-            a2 = factory_agent(model_p2["id"], agent_name=AGENT_TWO, strategy=p2_strategy, quantization=model_p2["quantization"], model_type=model_p2["model_type"], enable_thinking=model_p2["enable_thinking"], rate_limit_delay=model_p2.get("rate_limit_delay"))
+            a1 = build_party(model_p1, AGENT_ONE, p1_strategy)
+            a2 = build_party(model_p2, AGENT_TWO, p2_strategy)
 
             game = TradingGame(
                 players=[a1, a2],
@@ -259,8 +296,8 @@ def run_ultimatum(model_p1, model_p2, setup, num_runs, iterations, log_base, max
     for i in range(num_runs):
         try:
             print(f"[ultimatum] Run {i+1}/{num_runs} | {log_tag}")
-            a1 = factory_agent(model_p1["id"], agent_name=AGENT_ONE, strategy=p1_strategy, quantization=model_p1["quantization"], model_type=model_p1["model_type"], enable_thinking=model_p1["enable_thinking"], rate_limit_delay=model_p1.get("rate_limit_delay"))
-            a2 = factory_agent(model_p2["id"], agent_name=AGENT_TWO, strategy=p2_strategy, quantization=model_p2["quantization"], model_type=model_p2["model_type"], enable_thinking=model_p2["enable_thinking"], rate_limit_delay=model_p2.get("rate_limit_delay"))
+            a1 = build_party(model_p1, AGENT_ONE, p1_strategy)
+            a2 = build_party(model_p2, AGENT_TWO, p2_strategy)
 
             game = MultiTurnUltimatumGame(
                 players=[a1, a2],
@@ -420,22 +457,32 @@ def main():
             raw_models = models_cfg
 
     models = [normalize_model(m) for m in raw_models]
-    log_base = args.log_base or _derive_log_base(args.experiment, cfg, model_group_name)
 
     runner = GAME_RUNNERS.get(game_type)
     if runner is None:
         print(f"Unknown game type: {game_type}. Available: {list(GAME_RUNNERS.keys())}")
         sys.exit(1)
 
-    # Build model pairs
-    pairs = _build_pairs(models, cross_play)
+    # Build pairs — a team experiment is a fixed P1 team versus each opponent;
+    # otherwise the usual self/cross-play product over the model tier.
+    team_cfg = cfg.get("team")
+    if team_cfg:
+        opponents = _resolve_model_list(cfg.get("opponents"), all_configs)
+        party = {"team": team_cfg}
+        pairs = [(party, opp) for opp in opponents]
+        if isinstance(cfg.get("opponents"), str):
+            model_group_name = cfg["opponents"]
+    else:
+        pairs = _build_pairs(models, cross_play)
 
-    # Filter by --model if provided
+    log_base = args.log_base or _derive_log_base(args.experiment, cfg, model_group_name)
+
+    # Filter by --model if provided (matches either slot; a team party has no id)
     if args.model:
-        pairs = [(p1, p2) for p1, p2 in pairs if args.model in (p1["id"], p2["id"])]
+        pairs = [(p1, p2) for p1, p2 in pairs
+                 if args.model in (p1.get("id"), p2.get("id"))]
         if not pairs:
-            print(f"No pairs found involving model '{args.model}'. "
-                  f"Available models: {[m['id'] for m in models]}")
+            print(f"No pairs found involving model '{args.model}'.")
             sys.exit(1)
 
     # Count behaviour setups for summary
@@ -451,7 +498,12 @@ def main():
     print(f"Model Grp  : {model_group_name or 'inline list'}")
     print(f"Pairs      : {len(pairs)}")
     for p1, p2 in pairs:
-        label = "self-play" if p1["id"] == p2["id"] else "cross-play"
+        if "team" in p1:
+            label = "team-vs-opponent"
+        elif p1["id"] == p2["id"]:
+            label = "self-play"
+        else:
+            label = "cross-play"
         print(f"  {_safe_name(p1)} vs {_safe_name(p2)}  ({label})")
     print(f"Setups     : {len(setups)} ({len(default_setups)} default, {len(behaviour_setups)} with personas)")
     for s in setups:
@@ -466,8 +518,7 @@ def main():
     evict_hf_cache = cfg.get("evict_hf_cache", False)
     total_success, total_errors = 0, 0
     for model_p1, model_p2 in pairs:
-        keep = {(model_p1["id"], model_p1["quantization"]),
-                (model_p2["id"], model_p2["quantization"])}
+        keep = _party_model_keys(model_p1) | _party_model_keys(model_p2)
         evict_unused_models(keep, evict_disk=evict_hf_cache)
         for setup in setups:
             s, e = runner(model_p1, model_p2, setup, num_runs, iterations, log_base, max_retries=max_retries, target_runs=target_runs)
