@@ -83,6 +83,14 @@ class AlternatingGame(Game):
             with open(os.path.join(self.log_path, fname), "w") as f:
                 json.dump(trace, f, indent=2)
 
+        deliberation = getattr(active, "_last_deliberation_trace", None)
+        if deliberation:
+            active._last_deliberation_trace = None
+            Path(self.log_path).mkdir(parents=True, exist_ok=True)
+            fname = f"deliberation_trace_iter_{self.current_iteration}_turn_{self.turn}.json"
+            with open(os.path.join(self.log_path, fname), "w") as f:
+                json.dump(deliberation, f, indent=2)
+
         datum = dict(
             current_iteration=self.current_iteration,
             turn=self.turn,
