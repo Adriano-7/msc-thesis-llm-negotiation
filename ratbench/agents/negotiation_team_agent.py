@@ -15,10 +15,11 @@ the opponent's offer" is just one possible draft, so a single Borda ranking
 decides accept-vs-counter simultaneously (no separate accept vote, no member
 confidence) — see ``negotiation_team_design_note.md``.
 
-This mirrors the save/restore discipline of ``SelfRefineAgent``: each phase
-runs on the members' scratch conversations, which are rolled back so member
-context does not grow with deliberation; only the agreed final move is
-committed to the shared history. The full deliberation is stored in
+Deliberation runs in place on each member's conversation (so user/assistant turns keep
+alternating, as chat templates require), then every member is rolled back to
+its pre-turn snapshot and only the agreed final move is committed to the
+shared history — so context does not grow with deliberation. The full
+deliberation is stored in
 ``self._last_deliberation_trace`` and the game engine persists it to
 ``deliberation_trace_iter_{i}_turn_{t}.json``.
 """
@@ -102,11 +103,17 @@ class NegotiationTeamAgent(Agent):
     # ------------------------------------------------------------------
 
     def think(self):
-        # ── Phase 1 — independent drafts ──────────────────────────────
+        # Snapshot every member's conversation once. Deliberation then runs
+        # *in place* (each m.think() leaves an assistant turn before the next
+        # user prompt, so user/assistant strictly alternate — chat templates
+        # such as Gemma's reject consecutive same-role turns). We roll back to
+        # this snapshot at the very end and commit only the agreed move, so the
+        # outer turn-to-turn context never grows with deliberation. This is the
+        # same discipline as SelfRefineAgent.
         saved = [deepcopy(m.conversation) for m in self.members]
+
+        # ── Phase 1 — independent drafts ──────────────────────────────
         drafts = [m.think() for m in self.members]
-        for m, s in zip(self.members, saved):
-            m.conversation = s
 
         # ── Phase 2 — discussion rounds (×R) ──────────────────────────
         current = list(drafts)
@@ -114,12 +121,10 @@ class NegotiationTeamAgent(Agent):
         for _ in range(self.discussion_rounds):
             revised = []
             for i, m in enumerate(self.members):
-                s = deepcopy(m.conversation)
                 m.update_conversation_tracking(
                     "user", self._discussion_prompt(current, own=i)
                 )
                 revised.append(m.think())
-                m.conversation = s
             rounds_trace.append(list(revised))
             current = revised
 
@@ -127,10 +132,8 @@ class NegotiationTeamAgent(Agent):
         slate = current
         rankings = []
         for m in self.members:
-            s = deepcopy(m.conversation)
             m.update_conversation_tracking("user", self._ranking_prompt(slate))
             rankings.append(self._parse_ranking(m.think(), len(slate)))
-            m.conversation = s
         winner_idx, borda_scores = self._borda(rankings, len(slate))
         final = slate[winner_idx]
 
@@ -144,7 +147,10 @@ class NegotiationTeamAgent(Agent):
             "final": final,
         }
 
-        # Commit only the agreed move to the team and to every member.
+        # Roll back to pre-deliberation state, then commit only the agreed move
+        # to the team's public transcript and to every member.
+        for m, s in zip(self.members, saved):
+            m.conversation = s
         self.update_conversation_tracking("assistant", final)
         return final
 

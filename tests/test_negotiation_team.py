@@ -39,6 +39,21 @@ class FakeMember(Agent):
         self.conversation.append({"role": role, "content": message})
 
 
+class StrictMember(FakeMember):
+    """Like FakeMember, but enforces user/assistant alternation on every chat()
+    the way a chat template (e.g. Gemma's) does — so a regression that adds two
+    consecutive same-role turns fails loudly instead of silently."""
+
+    def chat(self):
+        roles = [m["role"] for m in self.conversation if m["role"] != "system"]
+        for a, b in zip(roles, roles[1:]):
+            if a == b:
+                raise AssertionError(
+                    f"Conversation roles must alternate; saw consecutive {a!r}: {roles}"
+                )
+        return super().chat()
+
+
 # Per-member script with discussion_rounds=2 is:
 #   [phase1_draft, round1_revision, round2_revision(=slate entry), phase3_ranking]
 DRAFTS = ["MOVE_A", "MOVE_B", "ACCEPT_MOVE"]
@@ -52,11 +67,11 @@ def _scripts(rankings):
     ]
 
 
-def _make_team(monkeypatch, rankings, discussion_rounds=2):
+def _make_team(monkeypatch, rankings, discussion_rounds=2, member_cls=FakeMember):
     script_iter = iter(_scripts(rankings))
 
     def fake_factory(name, agent_name, strategy="default", **kw):
-        return FakeMember(agent_name, next(script_iter))
+        return member_cls(agent_name, next(script_iter))
 
     monkeypatch.setattr(utils, "factory_agent", fake_factory)
     specs = [{"id": "fake/m0"}, {"id": "fake/m1"}, {"id": "fake/m2"}]
@@ -116,6 +131,16 @@ def test_trace_structure(monkeypatch):
     assert len(tr["rankings"]) == 3
     assert len(tr["borda_scores"]) == 3
     assert tr["final"] == DRAFTS[tr["winner_index"]]
+
+
+def test_member_roles_alternate_during_deliberation(monkeypatch):
+    # Regression: every member's history must keep user/assistant alternating
+    # through all three phases (Gemma's chat template rejects otherwise).
+    team = _make_team(
+        monkeypatch, ["<ranking> A > B > C </ranking>"] * 3, member_cls=StrictMember
+    )
+    team.init_agent("SYSTEM PROMPT", " ROLE")
+    team.step("opponent move")  # raises AssertionError if alternation breaks
 
 
 # ── pure-function tests (no team construction needed) ──────────────────
