@@ -7,7 +7,10 @@ turn, run a three-phase deliberation and emit one move:
     Phase 2 — Discussion rounds ×R. Each member sees the others' (grouped)
               drafts and revises its own.
     Phase 3 — Consensus (Borda).    Each member ranks the slate of revised
-              drafts; a Borda count selects the team's move.
+              drafts; a Borda count selects the team's move. The winner's
+              private <reason> is then re-voiced as a single negotiator's own
+              reasoning (it would otherwise reference peers/candidates the team
+              cannot see next turn); every other tag is preserved verbatim.
 
 The deliberation is entirely internal: the opponent only ever sees the final
 move, exactly like the private-reasoning design of NegotiationArena. "Accept
@@ -30,7 +33,8 @@ import string
 from copy import deepcopy
 
 from ratbench.agents.agents import Agent
-from ratbench.utils import get_tag_contents
+from ratbench.constants import REASONING_TAG
+from ratbench.utils import get_tag_contents, get_tag_indices
 
 
 # Labels used to present the slate of candidate moves to the members.
@@ -76,12 +80,9 @@ class NegotiationTeamAgent(Agent):
         ]
         self._last_deliberation_trace = None
 
-    # ------------------------------------------------------------------
     # Agent interface — the team keeps its own public transcript and mirrors
     # team-level events (incoming move, final move, parse-retry errors) to
     # every member so each member shares the same external history.
-    # ------------------------------------------------------------------
-
     def init_agent(self, system_prompt, role):
         for m in self.members:
             m.init_agent(system_prompt, role)
@@ -98,24 +99,19 @@ class NegotiationTeamAgent(Agent):
             "NegotiationTeamAgent acts via think(); chat() is never called directly."
         )
 
-    # ------------------------------------------------------------------
     # Deliberation
-    # ------------------------------------------------------------------
-
     def think(self):
         # Snapshot every member's conversation once. Deliberation then runs
-        # *in place* (each m.think() leaves an assistant turn before the next
-        # user prompt, so user/assistant strictly alternate — chat templates
-        # such as Gemma's reject consecutive same-role turns). We roll back to
-        # this snapshot at the very end and commit only the agreed move, so the
-        # outer turn-to-turn context never grows with deliberation. This is the
-        # same discipline as SelfRefineAgent.
+        # in place (each m.think() leaves an assistant turn before the next
+        # user prompt. We roll back to this snapshot at the very end and commit 
+        # only the agreed move, so the outer turn-to-turn context never grows with 
+        # deliberation. 
         saved = [deepcopy(m.conversation) for m in self.members]
 
-        # ── Phase 1 — independent drafts ──────────────────────────────
+        #  Phase 1 — independent drafts 
         drafts = [m.think() for m in self.members]
 
-        # ── Phase 2 — discussion rounds (×R) ──────────────────────────
+        #  Phase 2 — discussion rounds (×R) 
         current = list(drafts)
         rounds_trace = []
         for _ in range(self.discussion_rounds):
@@ -128,14 +124,20 @@ class NegotiationTeamAgent(Agent):
             rounds_trace.append(list(revised))
             current = revised
 
-        # ── Phase 3 — per-member ranking + Borda over the slate ───────
+        #  Phase 3 — per-member ranking + Borda over the slate 
         slate = current
         rankings = []
         for m in self.members:
             m.update_conversation_tracking("user", self._ranking_prompt(slate))
             rankings.append(self._parse_ranking(m.think(), len(slate)))
         winner_idx, borda_scores = self._borda(rankings, len(slate))
-        final = slate[winner_idx]
+        final_raw = slate[winner_idx]
+
+        # Launder the winning move's <reason> so it reads as one negotiator's
+        # own reasoning; The raw reason references peers/candidates the team
+        # cannot see next turn (deliberation is rolled back). Runs in place on
+        # the winning member (full context); the rollback below discards it.
+        final = self._launder_reason(final_raw, self.members[winner_idx])
 
         self._last_deliberation_trace = {
             "drafts": drafts,
@@ -144,6 +146,7 @@ class NegotiationTeamAgent(Agent):
             "rankings": rankings,
             "borda_scores": borda_scores,
             "winner_index": winner_idx,
+            "final_raw": final_raw,
             "final": final,
         }
 
@@ -154,12 +157,10 @@ class NegotiationTeamAgent(Agent):
         self.update_conversation_tracking("assistant", final)
         return final
 
-    # ------------------------------------------------------------------
     # Internal deliberation prompts (never seen by the opponent)
-    # ------------------------------------------------------------------
 
     def _discussion_prompt(self, drafts, own):
-        """Show member *own* its draft plus the grouped peer drafts and ask it
+        """Show member its own draft plus the grouped peer drafts and ask it
         to revise. Identical drafts are aggregated rather than concatenated so
         agreement is visible as support, not repetition."""
         groups = self._group_peers(drafts, own)
@@ -182,6 +183,50 @@ class NegotiationTeamAgent(Agent):
             "specified at the start of the game. Output only that move."
         )
 
+    def _launder_reason(self, move_text, member):
+        """Rewrite only the <reason> block of the agreed move into self-contained,
+        first-person reasoning and splice it back, leaving every other tag
+        byte-for-byte identical (the parsed move is unchanged).
+
+        Runs in place on the winning *member* — its deliberation history is
+        still live, so the model has full context, but the prompt instructs it
+        not to leak the peer/candidate references it can see. Returns the
+        original move unchanged when there is no <reason> tag or the rewrite is
+        unparseable (robust to small-model output)."""
+        start, end, length = get_tag_indices(move_text, REASONING_TAG)
+        if start == -1 or end == -1:
+            return move_text  # nothing to launder
+        original = move_text[start + length : end].strip()
+        member.update_conversation_tracking("user", self._reason_prompt(original))
+        try:
+            rewritten = get_tag_contents(member.think(), REASONING_TAG).strip()
+        except ValueError:
+            return move_text  # keep original on unparseable rewrite
+        if not rewritten:
+            return move_text
+        return f"{move_text[:start + length]} {rewritten} {move_text[end:]}"
+
+    def _reason_prompt(self, reason):
+        """Ask the winning member to re-voice its reasoning as a solo negotiator,
+        scrubbing every reference to the (still-visible) deliberation."""
+        return (
+            "Your team has agreed on this move. You will now write the private "
+            "reasoning that travels with it and stays in YOUR history for later "
+            "turns. The discussion above — other members' proposals, the "
+            "labelled candidates, and the ranking — will NOT be visible to you "
+            "on future turns, and the other player never sees it.\n\n"
+            "Rewrite the reasoning below so it stands entirely on its own as "
+            "your own first-person strategy. Keep the same strategy and the "
+            "same conclusion. Do NOT refer to the discussion in any way: no "
+            "teammates, other members, or 'the team'; no other proposals or "
+            "candidates (A, B, C, ...); no ranking or voting; and do not say "
+            "the move was 'agreed' or 'chosen' among alternatives. Write in the "
+            "first person ('I'), as a single negotiator.\n\n"
+            f"Reasoning to rewrite:\n{reason}\n\n"
+            f"Output ONLY the rewritten reasoning, inside "
+            f"<{REASONING_TAG}> </{REASONING_TAG}> tags."
+        )
+
     def _ranking_prompt(self, slate):
         """Ask a member to rank the whole slate best→worst for the team."""
         slate_block = "\n\n".join(
@@ -199,9 +244,7 @@ class NegotiationTeamAgent(Agent):
             f"<ranking> {' > '.join(_LABELS[k] for k in range(len(slate)))} </ranking>."
         )
 
-    # ------------------------------------------------------------------
     # Borda helpers
-    # ------------------------------------------------------------------
 
     @staticmethod
     def _group_peers(drafts, own):
@@ -225,10 +268,9 @@ class NegotiationTeamAgent(Agent):
     def _parse_ranking(text, slate_len):
         """Extract an ordered list of candidate indices from a member's vote.
 
-        Robust to small-model noise: reads the <ranking> block if present
-        (else the whole text), takes valid candidate letters in order of first
-        appearance. Returns [] when nothing parseable is found (that vote is
-        dropped from the tally)."""
+        Reads the <ranking> block if present else the whole text), takes valid 
+        candidate letters in order of first appearance. Returns [] when nothing 
+        parseable is found (that vote is dropped from the tally)."""
         try:
             body = get_tag_contents(text, "ranking")
         except ValueError:
@@ -266,11 +308,9 @@ class NegotiationTeamAgent(Agent):
         winner = max(range(slate_len), key=lambda i: scores[i])
         return winner, scores
 
-    # ------------------------------------------------------------------
     # Lean serialization — log the team's public transcript only, not the N
     # member transcripts (which would bloat game_state.json on every turn).
     # Mid-game resume is not supported for teams; runs start fresh.
-    # ------------------------------------------------------------------
 
     def get_state(self):
         return {

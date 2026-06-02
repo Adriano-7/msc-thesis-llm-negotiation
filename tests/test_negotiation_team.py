@@ -133,6 +133,49 @@ def test_trace_structure(monkeypatch):
     assert tr["final"] == DRAFTS[tr["winner_index"]]
 
 
+def test_reason_laundering_replaces_only_reason(monkeypatch):
+    # Slate drafts carry a <reason> that references the deliberation, plus other
+    # tags. The winning member gets one extra scripted chat() returning a clean
+    # <reason>; laundering must swap only the reason and preserve every other tag.
+    moves = [
+        f"<my name> RED </my name><reason> raw reason {i}, see Candidate B </reason>"
+        f"<player answer> NONE </player answer>"
+        f"<newly proposed trade> RED Gives X: {i} </newly proposed trade>"
+        for i in range(3)
+    ]
+    laundered = "<reason> clean first-person reasoning </reason>"
+    # Per member: [draft, rev1, rev2 (=slate), ranking]; winner (B, idx 1) also
+    # gets a 5th entry consumed by the laundering call. Extra trailing entries on
+    # non-winners are never popped.
+    script_iter = iter(
+        [moves[i], moves[i], moves[i], "<ranking> B > A > C </ranking>", laundered]
+        for i in range(3)
+    )
+
+    def fake_factory(name, agent_name, strategy="default", **kw):
+        return FakeMember(agent_name, next(script_iter))
+
+    monkeypatch.setattr(utils, "factory_agent", fake_factory)
+    specs = [{"id": "fake/m0"}, {"id": "fake/m1"}, {"id": "fake/m2"}]
+    team = NegotiationTeamAgent(AGENT_ONE, specs, discussion_rounds=2)
+    team.init_agent("SYSTEM PROMPT", " ROLE")
+    final = team.step("opponent move")
+
+    tr = team._last_deliberation_trace
+    assert tr["winner_index"] == 1
+    # Reason is the laundered text; the raw (pre-launder) move is kept in the trace.
+    assert tr["final_raw"] == moves[1]
+    assert "clean first-person reasoning" in final
+    assert "raw reason" not in final and "Candidate B" not in final
+    # Every other tag survives byte-for-byte from the winning draft.
+    assert "<player answer> NONE </player answer>" in final
+    assert "<newly proposed trade> RED Gives X: 1 </newly proposed trade>" in final
+    assert "<my name> RED </my name>" in final
+    # Only the winner consumed the 5th (laundering) script entry.
+    assert team.members[1]._i == 5
+    assert team.members[0]._i == 4 and team.members[2]._i == 4
+
+
 def test_member_roles_alternate_during_deliberation(monkeypatch):
     # Regression: every member's history must keep user/assistant alternating
     # through all three phases (Gemma's chat template rejects otherwise).
