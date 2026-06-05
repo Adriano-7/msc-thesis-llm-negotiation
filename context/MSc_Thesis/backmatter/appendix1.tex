@@ -1,0 +1,110 @@
+\chapter{Inference-Time Technique Prompts} \label{ap1:it-prompts}
+
+This appendix presents the prompt templates injected by the Self-Refine and Negotiation Team agents during a game turn.
+These prompts are internal to the agent and are never forwarded to the opponent.
+
+
+\section{Self-Refine Prompts}
+\label{ap1:sr-prompts}
+
+The Self-Refine agent \parencite{madaan_self-refine_2023} introduces a feedback-and-refinement loop in every turn.
+After generating an initial draft through a \texttt{think()} call, the agent sends two consecutive prompts---a feedback prompt followed by a refine prompt---on a scratch copy of its conversation, then discards the exchange and commits only the final refined response to its persistent history.
+By default, the loop runs for two iterations.
+
+\subsection{Feedback Prompt}
+
+The feedback prompt asks the agent to critique its current draft along five axes without rewriting it yet.
+
+\begin{lstlisting}[caption={Self-Refine feedback prompt.},label={lst:sr-feedback}]
+    Before finalizing your response, critique it along these axes. Be specific and actionable -- "make it better" is not useful. If a dimension is fine, say OK and move on. Do not rewrite the response yet.
+
+1. Format: Does your response contain all required tags in the correct order, with valid content (e.g., a parseable <proposed trade>)? Note any missing or malformed tag.
+
+2. Payoff alignment: Given your <my goals> (or <my valuation>), does the proposed trade actually advance your payoff? Would a slightly different split give you more utility while still being plausibly acceptable? Quantify if possible.
+
+3. Opponent plausibility: Given what the other player has said or offered so far, is your proposal likely to be accepted, or will it almost certainly be rejected? A rejected proposal wastes your turn.
+   
+4. Consistency: Is your <reason> consistent with your <player answer> and <newly proposed trade>? Does your <message> contradict your actual move?
+   
+5. Rule compliance: Are you respecting the proposal budget and turn constraints stated in the rules?
+
+Emit your critique inside <critique> ... </critique> tags. Include at most one concrete, actionable change per axis (e.g. "increase X by 2", "switch from ACCEPT to propose", "remove the contradictory claim in <message>"), not vague suggestions.
+\end{lstlisting}
+
+\subsection{Refine Prompt}
+
+After the critique has been generated, the refine prompt instructs the agent to rewrite its full response incorporating the flagged changes.
+
+\begin{lstlisting}[caption={Self-Refine refine prompt.},label={lst:sr-refine}]
+    Now rewrite your full response, incorporating the critique. Keep what was fine; change only what the critique flagged. Emit the complete response in the required format (all tags in order, as specified at the start of the game), not a diff. Do not include the critique in the final answer.
+\end{lstlisting}
+
+
+\section{Negotiation Team Prompts}
+\label{ap1:team-prompts}
+
+The Negotiation Team agent introduces a three-phase deliberation: independent drafting (Phase~1), peer discussion rounds (Phase~2), and Borda-count consensus (Phase~3).
+Phase~1 uses each member's standard game system prompt without modification. The three prompts below drive Phases~2 and~3.
+
+\subsection{Discussion Prompt (Phase~2)}
+
+Each team member receives this prompt once per discussion round. The placeholders \texttt{[own draft]} and \texttt{[peer block]} are substituted at runtime. The peer block lists each distinct peer proposal exactly once, annotated with a support count when multiple members submitted the same text (e.g.\ ``supported by 2 members'').
+
+\begin{lstlisting}[caption={Negotiation Team discussion prompt (Phase~2).},label={lst:team-discussion}]
+    Your team is deliberating privately before sending one move. This discussion is never shown to the  other player.
+
+    Your current proposal:
+    [own draft]
+
+    Your teammates independently proposed:
+    ## Proposal A (supported by X member[s])
+    [peer proposal text]
+
+    (additional proposals follow in the same format)
+
+    Weigh these against your own. If a teammate's reasoning is stronger for the team's payoff, adopt or merge it; if yours is stronger, keep it. Then output your (possibly revised) full move in exactly the required response format; all tags in order, as specified at the start of the game. Output only that move.
+\end{lstlisting}
+
+\subsection{Ranking Prompt (Phase~3)}
+
+After the final discussion round each member ranks the complete slate of revised proposals so that a Borda count can select the team's move.
+The placeholder \texttt{[slate block]} is the set of labelled candidate moves; \texttt{[labels]} is the comma-separated list of candidate letters (e.g.\ A, B, C for a three-member team).
+
+\begin{lstlisting}[caption={Negotiation Team ranking prompt (Phase~3).},label={lst:team-ranking}]
+    Your team must pick one of the following candidate moves to send. This vote is private.
+
+    ## Candidate A 
+    [candidate A text]
+
+    ## Candidate B 
+    [candidate B text]
+
+    (additional candidates follow in the same format)
+
+    Rank ALL candidates ([labels]) from best to worst for your team's payoff in this negotiation, accounting for how likely the other player is to accept. Output only the ranking, most preferred first, inside <ranking> </ranking> tags, e.g. <ranking> A > B > C </ranking>.
+\end{lstlisting}
+
+\subsection{Reason-Laundering Prompt (Phase~3)}
+
+Once the Borda count selects the winning candidate, the winning member rewrites only its \texttt{<reason>} block to remove all references to the deliberation (teammates, candidate labels, rankings) that would be invisible on future turns after the conversation is rolled back.
+The placeholder \texttt{[original reason]} is the raw \texttt{<reason>} text extracted from the winning draft.
+
+\begin{lstlisting}[caption={Negotiation Team reason-laundering prompt (Phase~3).},label={lst:team-reason}]
+Your team has agreed on this move. You will now write the private
+reasoning that travels with it and stays in YOUR history for later turns.
+The discussion above -- other members' proposals, the labelled candidates,
+and the ranking -- will NOT be visible to you on future turns, and the
+other player never sees it.
+
+Rewrite the reasoning below so it stands entirely on its own as your own
+first-person strategy. Keep the same strategy and the same conclusion. Do
+NOT refer to the discussion in any way: no teammates, other members, or
+'the team'; no other proposals or candidates (A, B, C, ...); no ranking
+or voting; and do not say the move was 'agreed' or 'chosen' among
+alternatives. Write in the first person ('I'), as a single negotiator.
+
+Reasoning to rewrite:
+[original reason]
+
+Output ONLY the rewritten reasoning, inside <reason> </reason> tags.
+\end{lstlisting}
