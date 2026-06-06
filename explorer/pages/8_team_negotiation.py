@@ -57,7 +57,11 @@ def load_team_runs():
         turns = gs.get("game_state", [])
         is_complete = bool(turns) and turns[-1].get("current_iteration") == "END"
         team_idx = _team_player_index(gs)
-        team_label, _, opp_label = matchup.partition("_vs_")
+        left, _, right = matchup.partition("_vs_")
+        if right.startswith("team") and not left.startswith("team"):
+            team_label, opp_label = right, left   # team in P2 slot
+        else:
+            team_label, opp_label = left, right
         rows.append(
             {
                 "experiment": experiment,

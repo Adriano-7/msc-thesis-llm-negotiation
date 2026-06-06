@@ -463,13 +463,19 @@ def main():
         print(f"Unknown game type: {game_type}. Available: {list(GAME_RUNNERS.keys())}")
         sys.exit(1)
 
-    # Build pairs — a team experiment is a fixed P1 team versus each opponent;
-    # otherwise the usual self/cross-play product over the model tier.
+    # Build pairs — a team experiment is a fixed team party versus each opponent;
+    # `team_slot` (p1 default / p2) chooses which slot the team occupies so we can
+    # study it as opener (P1) or responder (P2). Otherwise the usual self/cross-play
+    # product over the model tier.
     team_cfg = cfg.get("team")
     if team_cfg:
         opponents = _resolve_model_list(cfg.get("opponents"), all_configs)
         party = {"team": team_cfg}
-        pairs = [(party, opp) for opp in opponents]
+        team_slot = str(cfg.get("team_slot", "p1")).lower()
+        if team_slot == "p2":
+            pairs = [(opp, party) for opp in opponents]   # team responds in P2
+        else:
+            pairs = [(party, opp) for opp in opponents]    # team opens in P1
         if isinstance(cfg.get("opponents"), str):
             model_group_name = cfg["opponents"]
     else:
