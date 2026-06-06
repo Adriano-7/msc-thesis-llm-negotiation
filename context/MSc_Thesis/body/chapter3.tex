@@ -2,28 +2,76 @@
 
 \chapter{Methodology} \label{chap:ch3}
 
-\section{NegotiationArena Framework}
-\subsection{Games}
+This chapter describes how the negotiation capabilities of open-weight large language models were evaluated and how the two inference-time techniques studied in this thesis (Self-Refine and Team Negotiation) were implemented. Section~\ref{sec:na-framework} introduces the NegotiationArena framework by \textcite{bianchi_how_2024} shared across all experiments, its three game scenarios and the metrics used to score them. Section~\ref{sec:models-infra} presents the models under evaluation and the infrastructure used to run them. The remaining sections describe the experimental design for each of the three contributions: benchmarking open-weight models (Section~\ref{sec:benchmarking}), self-refine (Section~\ref{sec:self-refine}) and team-based negotiation (Section~\ref{sec:team-negotiation}).
+
+\section{NegotiationArena Framework} \label{sec:na-framework}
+
+\textcite{bianchi_how_2024} introduced NegotiationArena, an open-source framework to evaluate and analyze the negotiation abilities of LLM agents. The original work focused on proprietary models, some of which have since been deprecated; we keep the games and protocol unchanged but replace the agents with the open-weight models identified in Section~\ref{sec:models-infra} and expand it implementing two inference-time techniques (Sections~\ref{sec:self-refine} and~\ref{sec:team-negotiation}).
+
+\subsection{Games} \label{sec:games}
+% Explicar bem os três cenários: Ultimatum Game; Trading Game; Price Negotiation (BuySell)
+% Possíveis ações; o que significa ganhar em cada um deles?; 
+
+In each scenario, two agents alternate turns for up to a fixed number of rounds, or until one side terminates the game. Before each move, the agent reasons privately step by step; this reasoning is never revealed to the opponent.
+
+\paragraph{Resource Exchange Scenario (Trading game).}
+In the trading game, each party starts with a set of resources and aims to maximise their total holdings. The parties exchange proposals until one is accepted or the maximum number of rounds is reached. The agent with the greater gain wins.
+
+\paragraph{Multi-Turn Ultimatum Game.}
+In this variation of the classic Ultimatum Game \cite{doi:10.1126/science.1082976}, one agent receives all of the game's resources but must propose a split in order to keep any of it. The second agent can either accept, counter-propose a new split, or reject outright, causing both agents to lose all resources. If no agreement is reached within the maximum number of rounds, both agents lose everything. The winner is the agent with the higher share of the agreed split.
+
+\paragraph{Seller and Buyer Scenario.}
+Incomplete-information game in which a seller and a buyer negotiate the price of an item. Each party holds a private valuation: the seller knows its production cost and the buyer its willingness to pay. On each turn, a player may issue a \textsc{Proposal}, \textsc{Accept} the opponent's offer, or \textsc{Reject} and end the game with no deal. An agent wins if the agreed price is closer to the opponent's reservation value than to its own.
+
+\paragraph{}
+Every game runs for at most eight turns, after which it terminates without agreement if none has been reached. The system prompts and tag specifications for each game are available in Appendix~\ref{ap2:na-prompts}. The default parameters used are summarized in Table~\ref{tab:game-setup}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Default setup of each negotiation game.}
+    \label{tab:game-setup}
+    \begin{tabular}{lll}
+        \toprule
+        \textbf{Game} & \textbf{Parameters} & \textbf{Default values} \\
+        \midrule
+        Price Negotiation & seller cost / buyer value / money & 40 / 60 / 100 \\
+        Trading           & P1 resources / P2 resources       & \{X:25, Y:5\} / \{X:5, Y:25\} \\
+        Ultimatum         & pot                               & \$100 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
 \subsection{Evaluation Metrics}
 
+% Usamos Win Rate (percentagem de jogos ganhos) e Average Payoff como usaram no NegotiationArena
+% Para além disso analisamos a completion rate - percentagem de jogos que alcançam um estado final (por vezes não alcançam por um erro de protocolo/formato). Esta métrica é especialmente importante para medir o impacto do nosso mecanismo de retry 
+Negotiation performance is measured using the two metrics adopted in the NegotiationArena (Win Rate and Average Payoff) complemented by a Completion Rate.
+
 \begin{itemize}
-    \item \textbf{Completion Rate} 
-    \item \textbf{Win Rate} 
-    \item \textbf{Average Payoff} 
+    \item \textbf{Win Rate:} Percentage of \textit{completed} games in which a party obtained a higher payoff than the other. As in NegotiationArena, ties are ignored.
+    \item \textbf{Average Payoff:} Average number of resources of each agent after the trade. Its definition is game-specific: in Price Negotiation it is the surplus ($\text{price} - \text{cost}$ for the seller, $\text{value} - \text{price}$ for the buyer); in Trading it is the net change in resource value ($\text{final} - \text{initial}$), which may be negative; and in Ultimatum it is the number of dollars retained.
+    \item \textbf{Completion Rate:} Proportion of games that reach a final state. Because smaller open-weight models frequently violated the response format, this metric is reported alongside the others, and is the primary metric for the retry ablation.
 \end{itemize}
 
-\section{Models and Infrastructure}
+\section{Models and Infrastructure} \label{sec:models-infra}
+
+% Selecionámos modelos open-weight em três escalas de parâmetros para analisar o efeito do tamanho do modelo.
+% Agrupámo-los em três grupos (~4–9B, ~12–14B e ~24–27B), já que o número de parâmetros varia bastante entre famílias.
+% Tentámos manter versões consistentes entre grupos, mas tal não foi sempre possível: a família Mistral é representada pelo Ministral 3 e pelo Mistral Small 3.2, e a família Qwen pelo Qwen 2.5 e pelo Qwen3.
+% O Llama 3 foi também testado, mas acabou por ser excluído por apresentar uma taxa de conclusão demasiado baixa para justificar execuções adicionais
+
+% é usada quantização de 8 bits (bitsandbytes) nos modelos Gemma, Qwen e Mistral Small; os modelos Ministral já vêm quantizados em FP8 e são usados nessa precisão. Os modelos Qwen correm com o thinking mode desativado.
+
+Open-weight models vary considerably in scale, so our objective was to group them into comparable parameter tiers in order to measure performance differences across model sizes. We defined three tiers: approximately 4–9B, 12–14B, and 24–27B parameters. 
+
+For each tier, we selected the most recent available models from three families: Qwen, Mistral, and Gemma. Maintaining a consistent version across all tiers was not possible for Qwen and Mistral, so we included models from both Qwen 2.5 and Qwen 3, and from Ministral and Mistral Small, respectively. We initially considered Llama models as well, but we noticed difficulties in adhering to the required output format; given the additional computational overhead this would entail, we excluded them from the benchmark. The selected models are listed in Table~\ref{tab:experiment-models}.
+
+We applied $8$-bit quantization (\texttt{bitsandbytes}) to Gemma, Qwen and Mistral-Small models; the Ministral models are already distributed in native FP8 precision. Generation uses temperature $0.7$ and top-p $0.9$ sampling, with a maximum of $1024$ new tokens per generation call.
 
 \begin{table}[htbp]
 \centering
 \small
-\caption{Open-weight models used across all experiments. 
-%Gemma, Qwen, and
-%Mistral-Small are loaded with 8-bit quantization (bitsandbytes); the Ministral
-%models are released already quantized to FP8 and are used at that
-%native precision. VLM models are loaded with a vision-language (image-text-to-text) head; Qwen
-%models run with thinking mode disabled.
-}
+\caption{Open-weight models used across all experiments. }
 \label{tab:experiment-models}
 \begin{tabular}{lllll}
 \toprule
@@ -47,10 +95,24 @@
 \end{tabular}
 \end{table}
 
+% Tendo em conta o custo computacional desta tese, procuramos diversificar as possibilidades de onde corremos o código. Para modelos mais pequenos utilizamos o kaggle  (NVIDIA Tesla T4), para as outras categorias usamos o servidor do MIA (NVIDIA L40S) e o Deucalion (Nvidia A100) https://rnca.fccn.pt/en/deucalion/
+% Fizemos um código agnóstico quanto ao servidor onde corremos os jogos
+% Falar do huggingface agent e de como o nosso código tornou possível facilmente correr em qualquer servidor
 
-\section{Benchmarking Open-Weight LLMs}
+We implemented a common agent built on the HuggingFace \texttt{transformers} library, abstracting model loading, quantization, and chat-template formatting behind a single interface. This design kept the experiments agnostic to the underlying model family and execution environment, allowing the same code to run unchanged across all three platforms.
 
-\section{Self-Refine}
+Given the computational demands of the experiments, runs were distributed across three environments: the Kaggle free tier (2$\times$ NVIDIA T4) for smaller models, the MIA server (NVIDIA L40S), and the Deucalion HPC cluster (NVIDIA A100) \footnote{\url{https://rnca.fccn.pt/en/deucalion/}}.
+
+\section{Benchmarking Open-Weight LLMs} \label{sec:benchmarking}
+
+% Procuramos reproducir os resultados do NegotiationArena; Numa primeira fase fizemos cross play dos modelos dentro de uma categoria uns contra os outros; Numa segunda fase medimos o impacto de personas (cunning, desperate) na winrate/payoff em self-play;
+
+% No início reparamos que os modelos open-weights, especialmente os mais pequenos (~4B) tinham uma completion rate baixa (não chegavam ao final de muitos jogos devido a problemas de formato ou de não seguirem o protocolo corretamente); Procuramos perceber se dando aos modelos uma mensagem de erro e a oportunidade de se auto corrigirem funcionaria; fizemos uma ablanation a de um baseline (max retries 0) com (max retries 3)
+
+\section{Self-Refine} \label{sec:self-refine}
+
+% Baseado no artigo \cite{madaan_self-refine_2023} 
+% Citar prompts que estão no anexo;
 
 \begin{figure}
     \centering
@@ -59,7 +121,7 @@
     \label{fig:self_refine_loop}
 \end{figure}
 
-\section{Team Negotiation}
+\section{Team Negotiation} \label{sec:team-negotiation}
 
 \begin{figure}
     \centering
