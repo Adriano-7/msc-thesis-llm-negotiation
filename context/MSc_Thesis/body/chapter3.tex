@@ -79,9 +79,9 @@ Negotiation performance is measured using the two metrics adopted in the Negotia
 
 % é usada quantização de 8 bits (bitsandbytes) nos modelos Gemma, Qwen e Mistral Small; os modelos Ministral já vêm quantizados em FP8 e são usados nessa precisão. Os modelos Qwen correm com o thinking mode desativado.
 
-Open-weight models vary considerably in scale, so our objective was to group them into comparable parameter tiers in order to measure performance differences across model sizes. We defined three tiers: approximately 4–9B, 12–14B, and 24–27B parameters. 
+Open-weight models vary considerably in scale, so our objective was to group them into comparable parameter tiers in order to measure performance differences across model sizes. We defined three tiers: 4–9B, 12–14B, and 24–27B parameters. 
 
-For each tier, we selected the most recent available models from three families: Qwen, Mistral, and Gemma. Maintaining a consistent version across all tiers was not possible for Qwen and Mistral, so we included models from both Qwen 2.5 and Qwen 3, and from Ministral and Mistral Small, respectively. We initially considered Llama models as well, but we noticed difficulties in adhering to the required output format; given the additional computational overhead this would entail, we excluded them from the benchmark. The selected models are listed in Table~\ref{tab:experiment-models}.
+For each tier, we selected models from three families: Qwen, Mistral, and Gemma. Maintaining a consistent version across all tiers was not possible for Qwen and Mistral, so we included models from both Qwen 2.5 and Qwen 3, and from Ministral and Mistral Small, respectively. We initially considered Llama models as well, but we noticed difficulties in adhering to the required output format; given the additional computational overhead this would entail, we excluded them from the benchmark. The selected models are listed in Table~\ref{tab:experiment-models}.
 
 We applied $8$-bit quantization (\texttt{bitsandbytes}) to Gemma, Qwen and Mistral-Small models; the Ministral models are already distributed in native FP8 precision. Generation uses temperature $0.7$ and top-p $0.9$ sampling, with a maximum of $1024$ new tokens per generation call.
 
@@ -118,7 +118,7 @@ We applied $8$-bit quantization (\texttt{bitsandbytes}) to Gemma, Qwen and Mistr
 
 We implemented a common agent built on the HuggingFace \texttt{transformers} library, abstracting model loading, quantization, and chat-template formatting behind a single interface. This design kept the experiments agnostic to the underlying model family and execution environment, allowing the same code to run unchanged across all three platforms.
 
-Given the computational demands of the experiments, runs were distributed across three environments: the Kaggle free tier (2$\times$ NVIDIA T4) for smaller models, the MIA server (NVIDIA L40S), and the Deucalion HPC cluster (NVIDIA A100) \footnote{\url{https://rnca.fccn.pt/en/deucalion/}}.
+Given the computational demands of the experiments, runs were distributed across three environments: Kaggle (2$\times$ NVIDIA T4) for smaller models, the MIA server (NVIDIA L40S), and the Deucalion HPC cluster (NVIDIA A100) \footnote{\url{https://rnca.fccn.pt/en/deucalion/}}.
 
 \section{Benchmarking Open-Weight LLMs} \label{sec:benchmarking}
 % Procuramos reproducir os resultados do NegotiationArena; Numa primeira fase fizemos cross play dos modelos dentro de uma categoria uns contra os outros; Numa segunda fase medimos o impacto de personas (cunning, desperate) na winrate/payoff em self-play;
@@ -133,22 +133,65 @@ To measure how well current open-weight models negotiate among themselves, we ru
 
 \subsection{Social Personas} \label{sec:personas}
 
-Following \textcite{bianchi_how_2024}, we analyze whether assigning a social persona to one party changes the outcomes of the negotiations. Player 1 always uses the default behaviour, while Player 2 is assigned one of three personas: \textit{baseline} (no persona), \textit{desperate} (instructed to feign desperation and beg for a better deal), or \textit{cunning} (instructed to be manipulative and to insult the opponent). The exact wording for each persona is listed in Appendix~\ref{ap2:persona}. To isolate the effect of the persona from any capability gap between models, this experiment is conducted in self-play.
+Following \textcite{bianchi_how_2024}, we analyze whether assigning a social persona to one party changes the outcomes of the negotiations. Player 1 always uses the default behaviour, while Player 2 is assigned one of three personas: \textit{baseline} (no persona), \textit{desperate} (instructed to feign desperation and beg for a better deal), or \textit{cunning} (instructed to be manipulative and to insult the opponent). The persona text is appended directly to Player~2's game system prompt; the exact wording for each persona and game is listed in Table~\ref{tab:persona-prompts}. To isolate the effect of the persona from any capability gap between models, this experiment is conducted in self-play.
+
+\begin{table}
+\centering
+\small
+\caption{Persona prompts appended to Player~2's system message in the persona experiments.}
+\label{tab:persona-prompts}
+\begin{tabular}{llp{8.5cm}}
+\toprule
+\textbf{Game} & \textbf{Condition} & \textbf{Appended text} \\
+\midrule
+\multirow{2}{*}{Buy-Sell}
+  & \emph{desperate} & \textit{You must fake being desperate. Supplicate and beg to spend less ZUP.} \\
+  & \emph{cunning}   & \textit{You are cunning and sly in your plan to spend less ZUP. Humiliate your opponent as much as possible. Insult them.} \\
+\midrule
+\multirow{2}{*}{Trading}
+  & \emph{desperate} & \textit{You must fake being desperate. Supplicate and beg to get more resources.} \\
+  & \emph{cunning}   & \textit{You are cunning and sly in your plan to get more resources. Humiliate your opponent as much as possible. Insult them.} \\
+\midrule
+\multirow{2}{*}{Ultimatum}
+  & \emph{desperate} & \textit{You must fake being desperate. Supplicate and beg to get more dollars.} \\
+  & \emph{cunning}   & \textit{You are cunning and sly in your plan to get more than your opponent. Humiliate your opponent as much as possible. Insult them.} \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Self-Correction} \label{sec:retry-ablation} 
 
 A practical obstacle we faced with smaller open-weight models was that they frequently produced responses violating the required tag format and therefore could not be parsed into a valid move, ending the game prematurely. To measure whether giving a model the opportunity to correct such mistakes helps, we introduce a retry loop: when a response fails to parse, the agent receives an error message describing the failure and is asked to resubmit its move in the correct format, with up to \texttt{max\_retries} attempts to do so. We compare the baseline (\texttt{max\_retries},$=0$) against \texttt{max\_retries},$=3$ across both experiments, using Completion Rate as the primary metric.
+
 \section{Self-Refine} \label{sec:self-refine}
 
 % Baseado no artigo \cite{madaan_self-refine_2023} 
 % Citar prompts que estão no anexo;
 
+We then investigate whether a model negotiates better when given the chance to critique and rewrite its own move before committing to it. As introduced in Section~\ref{sec:self-refinement}, we apply the Self-Refine algorithm of \textcite{madaan_self-refine_2023}: rather than immediately committing to an answer, the agent cycles through a \textit{draft $\rightarrow$ feedback $\rightarrow$ refine} loop, using its own critique as the only source of feedback. Figure\ref{fig:self_refine_loop} illustrates the adapted loop.
+
 \begin{figure}
     \centering
     \includegraphics[width=0.7\linewidth]{figures//methodology/SelfRefine___Figure.jpg}
-    \caption{Self-Refine process. After generating an initial draft (Phase 1), the agent self-critiques it's output along five axis (Phase 2). Finally the scratch conversation used during refinement is discarded; only the final response is appended to the shared game history (Phase 3).}
+    \caption{Self-Refine process. After generating an initial draft (Phase 1), the agent critiques its output along five axes (Phase 2). Finally, the scratch conversation used during refinement is discarded; only the final response is appended to the shared game history (Phase 3).}
     \label{fig:self_refine_loop}
 \end{figure}
+
+Whenever an agent must choose a move, it first produces an initial draft and then runs two critique-and-rewrite iterations. Each iteration prompts the agent to critique its current draft along the following negotiation-specific axes:
+
+\begin{itemize}
+\item \textbf{Format:} whether every required tag is present and parseable;
+\item \textbf{Payoff Alignment:} whether the proposed trade advances the agent's own valuation or goal;
+\item \textbf{Opponent Plausibility:} whether the move is likely to be accepted given the dialogue so far;
+\item \textbf{Consistency:} whether the reasoning, message, and move agree with one another;
+\item \textbf{Rule Compliance:} whether the proposal budget and turn limits are respected.
+\end{itemize}
+
+A second \textit{refine} prompt then asks the model to rewrite the response, incorporating the flagged changes. The critique and intermediate drafts are produced on a scratch copy of the conversation; once refinement ends, this scratch copy is discarded and only the final response is appended to the shared game history, preserving the private reasoning design of NegotiationArena.
+
+We evaluate the four combinations obtained by assigning each party either the default or the Self-Refine strategy: both default, both SelfRefine, and the two mixed conditions. As in the social-persona experiment (Section~\ref{sec:personas}), every condition is run in self-play so that any difference is attributable to the strategy rather than to a capability gap between models; each condition is played for 30 games across all three scenarios and model tiers. The feedback and refinement prompts are given in Appendix~\ref{ap1:sr-prompts}.
+
+Unlike the previous experiments, each move requires five model calls: one initial draft plus, for each of the two iterations, one feedback and one rewrite call (Table~\ref{tab:inference-cost}). Whether this increase in inference cost delivers a measurable improvement in negotiation performance is one of the main questions taken up in the results chapter.
 
 \section{Team Negotiation} \label{sec:team-negotiation}
 
