@@ -504,7 +504,7 @@ def main():
     print(f"Model Grp  : {model_group_name or 'inline list'}")
     print(f"Pairs      : {len(pairs)}")
     for p1, p2 in pairs:
-        if "team" in p1:
+        if "team" in p1 or "team" in p2:
             label = "team-vs-opponent"
         elif p1["id"] == p2["id"]:
             label = "self-play"
