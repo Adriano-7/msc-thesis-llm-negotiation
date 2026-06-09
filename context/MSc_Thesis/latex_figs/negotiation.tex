@@ -9,7 +9,7 @@
 \definecolor{redFill}{HTML}{F5E8E4}
 \definecolor{redLine}{HTML}{8C2D18}
 \definecolor{redText}{HTML}{3A1009}
-% Slate family (draft / initial output)
+% Slate family (draft / member boxes)
 \definecolor{slateFill}{HTML}{EAEDF0}
 \definecolor{slateLine}{HTML}{6B7E8C}
 \definecolor{slateText}{HTML}{2E404D}
@@ -28,70 +28,63 @@
 \begin{document}
 \begin{tikzpicture}[
   font=\sffamily,
-  box/.style    ={rounded corners=5pt, draw, line width=0.7pt, align=center, inner sep=7pt},
-  draft/.style  ={box, fill=slateFill, draw=slateLine, text=slateText,
-                  minimum width=11.5cm, minimum height=1.2cm},
-  crit/.style   ={box, fill=redFill,   draw=redLine,   text=redText,
-                  minimum width=11.5cm, minimum height=1.9cm},
-  ref/.style    ={box, fill=tealFill,  draw=tealLine,  text=tealText,
-                  minimum width=11.5cm, minimum height=1.2cm},
-  final/.style  ={box, fill=sandFill,  draw=sandLine,  text=sandText,
-                  minimum width=11.5cm, minimum height=1.2cm},
-  phase/.style  ={text=phaseText, font=\sffamily\bfseries, anchor=west,
-                  fill=white, inner sep=3pt},
-  flow/.style   ={-{Stealth[round]}, draw=arrowGray, line width=1pt},
-  back/.style   ={-{Stealth[round]}, draw=redLine!70, line width=0.9pt, dashed},
+  box/.style   ={rounded corners=5pt, draw, line width=0.7pt, align=center, inner sep=6pt},
+  member/.style={box, fill=slateFill, draw=slateLine, text=slateText,
+                 minimum width=3.5cm, minimum height=1.1cm},
+  disc/.style  ={box, fill=redFill,   draw=redLine,   text=redText,
+                 minimum width=12.8cm, minimum height=1.3cm},
+  borda/.style ={box, fill=sandFill,  draw=sandLine,  text=sandText,
+                 minimum width=6.3cm, minimum height=1.3cm},
+  rew/.style   ={box, fill=tealFill,  draw=tealLine,  text=tealText,
+                 minimum width=6.3cm, minimum height=1.3cm},
+  phase/.style ={text=phaseText, font=\sffamily\bfseries, anchor=west,
+                 fill=white, inner sep=3pt},
+  flow/.style  ={-{Stealth[round]}, draw=arrowGray, line width=1pt},
+  back/.style  ={-{Stealth[round]}, draw=redLine!70, line width=0.9pt, dashed},
 ]
 
-% ----- Phase 1: Initial Draft -----
-\node[phase] at (-0.1, 1.55) {Phase 1: Initial Draft};
-\node[draft] (DRAFT) at (6.9, 0)
-  {\textbf{Generate Initial Response}\\[2pt]
-   \footnotesize proposed move\,+\,reasoning};
+% ----- Phase 1 -----
+\node[phase] at (-0.1,1.55) {Phase 1: Independent Drafts};
+\node[member] (A) at (2.1,0)  {\textbf{Member A}\\[1pt]\footnotesize move + reason};
+\node[member] (B) at (6.9,0)  {\textbf{Member B}\\[1pt]\footnotesize move + reason};
+\node[member] (C) at (11.7,0) {\textbf{Member C}\\[1pt]\footnotesize move + reason};
 
-% ----- Phase 2: Self-Refine Loop -----
-\node[phase] at (-0.1, -1.75) {Phase 2: Self-Refine Loop ($\times$\,2)};
+% ----- Phase 2 -----
+\node[disc] (D) at (6.9,-3.25)
+  {\textbf{Each member sees the others' drafts, then revises}\\[2pt]
+   \footnotesize Drafts stay private to the team};
+\node[phase] at (-0.1,-1.75) {Phase 2: Discussion Rounds ($\times$R)};
 
-\node[crit] (CRIT) at (6.9, -3.9)
-  {\textbf{Self-Critique}\\[5pt]
-   \footnotesize
-   \begin{tabular}{@{}p{2.9cm}@{\hspace{0.6cm}}p{3.4cm}@{\hspace{0.6cm}}p{3.6cm}@{}}
-     \textbf{1.}\enspace Format &
-     \textbf{2.}\enspace Payoff alignment &
-     \textbf{3.}\enspace Opponent plausibility \\[3pt]
-     \textbf{4.}\enspace Consistency &
-     \textbf{5.}\enspace Rule compliance &
-   \end{tabular}};
-
-\node[ref] (REF) at (6.9, -6.05)
-  {\textbf{Rewrite Response}\\[2pt]
-   \footnotesize keep what was fine\,·\,change only what the critique flagged};
-
-% Dashed enclosure for the iterated block
+% Dashed enclosure: the discussion phase repeats for R rounds
 \begin{scope}[on background layer]
   \node[draw=redLine!45, dashed, rounded corners=8pt, line width=0.9pt,
-        fit=(CRIT)(REF), inner sep=11pt, fill=redFill!25] (LOOPBOX) {};
+        fit=(D), inner sep=11pt, fill=redFill!25] (LOOPBOX) {};
 \end{scope}
 
-% ----- Phase 3: Final Output -----
-\node[phase] at (-0.1, -7.7) {Phase 3: Final Output};
-\node[final] (FINAL) at (6.9, -8.85)
-  {\textbf{Commit Final Response}\\[2pt]
-   \footnotesize scratch conversation discarded\,·\,final answer appended to game history};
-
-% ----- Arrows -----
-\draw[flow] (DRAFT.south) -- (CRIT.north);
-\draw[flow] (CRIT.south)  -- (REF.north);
-\draw[flow] (REF.south)   -- (FINAL.north);
+% Member drafts feed into the discussion box (stop at the enclosure edge)
+\draw[flow] (A.south) -- (A.south |- LOOPBOX.north);
+\draw[flow] (B.south) -- (B.south |- LOOPBOX.north);
+\draw[flow] (C.south) -- (C.south |- LOOPBOX.north);
 
 % Loop-back arrow on the right side
-\coordinate (loopBot) at ($(REF.east)  + (1.15,0)$);
-\coordinate (loopTop) at ($(CRIT.east) + (1.15,0)$);
-\draw[back] (REF.east) -- (loopBot) -- (loopTop) -- (CRIT.east);
-
-% Label on the loop arrow
+\coordinate (loopBot) at ($(D.east) + (1.25,-0.32)$);
+\coordinate (loopTop) at ($(D.east) + (1.25, 0.32)$);
+\draw[back] ($(D.east)+(0,-0.32)$) -- (loopBot) -- (loopTop) -- ($(D.east)+(0,0.32)$);
 \node[font=\sffamily\footnotesize, text=redText, anchor=west]
-  at ($(loopBot)!0.5!(loopTop) + (0.08,0)$) {iterate};
+  at ($(loopBot)!0.5!(loopTop) + (0.08,0)$) {};
+
+% ----- Phase 3 -----
+\node[phase] at (-0.1,-5.05) {Phase 3: Consensus};
+\node[borda] (BV) at (6.9,-6.45)
+  {\textbf{Borda vote over revised drafts}\\[2pt]
+   \footnotesize  Winning candidate selected};
+\draw[flow] (BV.north |- LOOPBOX.south) -- (BV.north);
+
+% ----- Reason rewrite -----
+\node[rew] (RW) at (6.9,-8.25)
+  {\textbf{Rewrite reason}\\[2pt]
+   \footnotesize Remove teammate references to prevent hallucinations};
+\draw[flow] (BV.south) -- (RW.north);
 
 \end{tikzpicture}
 \end{document}

@@ -7,7 +7,7 @@ This chapter describes how the negotiation capabilities of open-weight large lan
 \begin{table}
 \centering
 \small
-\caption{Summary of the experimental design. All experiments are run on each of the three games and execute $30$ games per model pair and condition. The parse-error retry ablation (Sec.~\ref{sec:retry-ablation}) is not a standalone experiment: it re-runs the benchmark cross-play and the social-persona conditions with \texttt{max\_retries}\,$=3$ and compares them against their \texttt{max\_retries}\,$=0$ baselines.}
+\caption{Summary of the experimental design. All experiments are run on each of the three games and execute $30$ games per model pair and condition. The parse-error retry ablation (Sec.~\ref{sec:retry-ablation}) re-runs the benchmark cross-play and the social-persona conditions with \texttt{max\_retries}\,$=3$ and compares them against their \texttt{max\_retries}\,$=0$ baselines.}
 \label{tab:experiment-design}
 \begin{tabular}{llll}
 \toprule
@@ -26,7 +26,7 @@ Team negotiation (Sec.~\ref{sec:team-negotiation})      & Small  & Team vs.\ sin
 \textcite{bianchi_how_2024} introduced NegotiationArena, an open-source framework to evaluate and analyze the negotiation abilities of LLM agents. The original work focused on proprietary models, some of which have since been deprecated; we keep the games and protocol unchanged, but replace the agents with the open-weight models identified in Table~\ref{tab:experiment-models} and extend it by implementing two inference-time techniques (Sections~\ref{sec:self-refine} and~\ref{sec:team-negotiation}). 
 
 \subsection{Games} \label{sec:games}
-% Explicar bem os três cenários: Ultimatum Game; Trading Game; Price Negotiation (BuySell)
+% Explicar: Ultimatum Game; Trading Game; Price Negotiation (BuySell)
 % Possíveis ações; o que significa ganhar em cada um deles?; 
 
 In each scenario, two agents alternate turns for up to a fixed number of rounds, or until one side terminates the game. Before each move, the agent reasons privately step by step; this reasoning is never revealed to the opponent.
@@ -119,7 +119,7 @@ We applied $8$-bit quantization (\texttt{bitsandbytes}\footnote{\url{https://git
 
 We implemented a common agent built on the HuggingFace \texttt{transformers} library\footnote{\url{https://huggingface.co/docs/transformers/en/index}}, abstracting model loading, quantization, and chat-template formatting behind a single interface. This design kept the experiments agnostic to the underlying model family and execution environment, allowing the same code to run unchanged across all three platforms.
 
-Given the computational demands of the experiments, runs were distributed across three environments: Kaggle (2$\times$ NVIDIA T4) for smaller models, the MIA server (NVIDIA L40S), and the Deucalion HPC cluster (NVIDIA A100) \footnote{\url{https://rnca.fccn.pt/en/deucalion/}}.
+Runs were distributed across three environments: Kaggle (2$\times$ NVIDIA T4), the MIA server (NVIDIA L40S), and the Deucalion HPC cluster (NVIDIA A100) \footnote{\url{https://rnca.fccn.pt/en/deucalion/}}.
 
 \section{Benchmarking Open-Weight LLMs} \label{sec:benchmarking}
 % Procuramos reproducir os resultados do NegotiationArena; Numa primeira fase fizemos cross play dos modelos dentro de uma categoria uns contra os outros; Numa segunda fase medimos o impacto de personas (cunning, desperate) na winrate/payoff em self-play;
@@ -162,7 +162,15 @@ Following \textcite{bianchi_how_2024}, we analyse whether assigning a social per
 
 \subsection{Self-Correction} \label{sec:retry-ablation} 
 
-A practical obstacle we faced with smaller open-weight models was that they frequently produced responses violating the required tag format and therefore could not be parsed into a valid move, ending the game prematurely. To measure whether giving a model the opportunity to correct such mistakes helps, we introduce a retry loop: when a response fails to parse, the agent receives an error message describing the failure and is asked to resubmit its move in the correct format, with up to \texttt{max\_retries} attempts to do so. We compare the baseline (\texttt{max\_retries}\,$=0$) against \texttt{max\_retries},$=3$ across both experiments, using Completion Rate as the primary metric.
+A practical obstacle with smaller open-weight models was that they frequently produced responses violating the required tag format, which could not be parsed into a valid move and ended the game prematurely. To address this, we test whether giving a model the opportunity to correct its formatting helps. When a response fails to parse, the agent receives an error message containing its offending response together with the parser error, and is asked to resubmit its move in the correct format; this repeats up to \texttt{max\_retries} times, after which the game ends unparsed and is counted as incomplete. Figure~\ref{fig:retry_loop} illustrates this loop. We compare the baseline (\texttt{max\_retries}\,$=0$) against \texttt{max\_retries}\,$=3$ across both experiments, using Completion Rate as the primary metric.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\linewidth]{figures/methodology/SelfCorrection___Figure_page.jpg}
+    \caption{The parse-error self-correction loop applied each turn. A move is committed only once it parses into valid tags; otherwise the agent is fed the parser error and re-generates, up to \texttt{max\_retries} times, before the game is abandoned as incomplete. Unlike the Self-Refine loop of Figure~\ref{fig:self_refine_loop}, this loop is involuntary (entered only on a parse failure) and corrects \emph{format} rather than the quality of the move.}
+    \label{fig:retry_loop}
+\end{figure}
+
 
 \section{Self-Refine} \label{sec:self-refine}
 
