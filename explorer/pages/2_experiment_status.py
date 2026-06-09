@@ -148,6 +148,17 @@ def load_status() -> pd.DataFrame:
                     m2 = _STRAT_SUFFIX_RE.search(raw)
                     pair_tag = raw[: m2.start()] if m2 else raw
                     setup_tag = "-"
+            elif section_raw == "negotiation_team" and len(parts) in (6, 7):
+                exp_name = parts[1]
+                is_p2 = exp_name.endswith("_p2")
+                core = exp_name[: -len("_p2")] if is_p2 else exp_name
+                game_type = core.split("_negotiation_team")[0]
+                diversity = "hetero" if "hetero" in core else "homo"
+                condition = f"{diversity}-{'p2' if is_p2 else 'p1'}"
+                model_size = parts[2]
+                pair_tag = parts[3]
+                # buysell carries an extra setup level (…/pair/setup/ts/file)
+                setup_tag = parts[4] if len(parts) == 7 else "-"
             else:
                 continue
 
@@ -286,6 +297,10 @@ SECTION_MAP = {
     ("self_refine", "refine × refine"): ("Self-Refine", "refine × refine"),
     ("self_refine", "base × refine"):   ("Self-Refine", "base × refine"),
     ("self_refine", "refine × base"):   ("Self-Refine", "refine × base"),
+    ("negotiation_team", "homo-p1"):    ("Team", "homo P1"),
+    ("negotiation_team", "hetero-p1"):  ("Team", "hetero P1"),
+    ("negotiation_team", "homo-p2"):    ("Team", "homo P2"),
+    ("negotiation_team", "hetero-p2"):  ("Team", "hetero P2"),
 }
 
 CANONICAL_SIZES = ["very_small", "small", "medium"]
@@ -330,8 +345,13 @@ GROUPED_TABLE_CSS = """
 """
 st.markdown(GROUPED_TABLE_CSS, unsafe_allow_html=True)
 
+# Team negotiation gets its own table below (team-vs-single pairs don't fit the
+# self/cross-play grid), so keep it out of the main grouped tables.
+main_cells = per_cell[per_cell["Section"] != "negotiation_team"]
+team_cells = per_cell[per_cell["Section"] == "negotiation_team"]
+
 for size in CANONICAL_SIZES:
-    sub = per_cell[per_cell["Model Size"] == size]
+    sub = main_cells[main_cells["Model Size"] == size]
     if sub.empty:
         continue
     st.markdown(f"### {size.replace('_', ' ').title()}")
@@ -362,6 +382,46 @@ for size in CANONICAL_SIZES:
     html = pivoted.to_html(classes="grouped-status-table", border=0, escape=False)
     html = _mark_self_play_rows(html, self_play_pairs)
     st.markdown(html, unsafe_allow_html=True)
+
+# --- Team Negotiation (separate table) ---
+if not team_cells.empty:
+    st.markdown("---")
+    st.subheader("Team Negotiation Status")
+
+    # The homo/hetero + P1/P2 condition is already implied by each pair, so
+    # spreading it across columns leaves the grid almost empty. Instead group
+    # rows by condition and keep one column per game.
+    _TEAM_COND_ORDER = ["homo P1", "hetero P1", "homo P2", "hetero P2"]
+
+    tc = team_cells.copy()
+    labels = tc.apply(
+        lambda r: SECTION_MAP.get((r["Section"], r["Condition"]), (r["Section"], r["Condition"])),
+        axis=1,
+    )
+    tc["Team"] = [x[1] for x in labels]
+    tc["Team"] = pd.Categorical(tc["Team"], categories=_TEAM_COND_ORDER, ordered=True)
+
+    for size in CANONICAL_SIZES:
+        sub = tc[tc["Model Size"] == size]
+        if sub.empty:
+            continue
+        st.markdown(f"### {size.replace('_', ' ').title()}")
+
+        pivoted = sub.pivot_table(
+            index=["Team", "Pair"],
+            columns="Game",
+            values="Cell",
+            aggfunc="first",
+            observed=True,
+        )
+
+        present_games = [g for g in GAME_ORDER if g in pivoted.columns]
+        if present_games:
+            pivoted = pivoted.reindex(columns=present_games)
+
+        pivoted = pivoted.fillna("-")
+        html = pivoted.to_html(classes="grouped-status-table", border=0, escape=False)
+        st.markdown(html, unsafe_allow_html=True)
 
 st.markdown("---")
 st.subheader("Flat Status Table")
