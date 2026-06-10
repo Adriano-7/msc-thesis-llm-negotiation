@@ -47,7 +47,7 @@ _ORANGE = "#de8f05"
 _GREEN = "#029e73"
 _RED = "#d55e00"
 _PURPLE = "#cc78bc"
-_GRAY = "#949494"
+_GRAY = "#8C8C8C"
 _YELLOW = "#ece133"
 _SKY = "#56b4e9"
 
