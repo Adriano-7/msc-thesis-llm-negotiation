@@ -26,16 +26,19 @@ _STRAT_TO_COND = {
 }
 
 _SR_GAMES = {
-    "trading_self_refine_v1":   "trading",
-    "buysell_self_refine_v1":   "buysell",
-    "ultimatum_self_refine_v1": "ultimatum",
+    "trading_self_refine_v1":          "trading",
+    "buysell_self_refine_v1":          "buysell",
+    "ultimatum_self_refine_v1":        "ultimatum",
+    "trading_self_refine_v1_retry3":   "trading",
+    "buysell_self_refine_v1_retry3":   "buysell",
+    "ultimatum_self_refine_v1_retry3": "ultimatum",
 }
 
 
 def _sr_condition_dirs() -> list[tuple]:
     """
-    Yield (game, size, pair_tag, condition, dir_path) for every self-refine
-    condition directory that exists on disk — including empty ones.
+    Yield (game, size, pair_tag, condition, dir_path, is_retry) for every
+    self-refine condition directory that exists on disk — including empty ones.
     """
     results = []
     sr_root = Path(LOGS_ROOT) / "self_refine"
@@ -45,6 +48,7 @@ def _sr_condition_dirs() -> list[tuple]:
         game = _SR_GAMES.get(exp_dir.name)
         if game is None or not exp_dir.is_dir():
             continue
+        is_retry = exp_dir.name.endswith("_retry3")
         for size_dir in exp_dir.iterdir():
             if not size_dir.is_dir():
                 continue
@@ -58,7 +62,7 @@ def _sr_condition_dirs() -> list[tuple]:
                     cond = _STRAT_TO_COND.get((m.group(1), m.group(2)))
                     if cond:
                         pair = sub.name[: m.start()]
-                        results.append((game, size, pair, cond, sub))
+                        results.append((game, size, pair, cond, sub, is_retry))
                 else:
                     # BuySell: sub = "{pair}", look one level deeper
                     pair = sub.name
@@ -69,7 +73,7 @@ def _sr_condition_dirs() -> list[tuple]:
                         if m2:
                             cond = _STRAT_TO_COND.get((m2.group(1), m2.group(2)))
                             if cond:
-                                results.append((game, size, pair, cond, setup_dir))
+                                results.append((game, size, pair, cond, setup_dir, is_retry))
     return results
 
 
@@ -128,7 +132,9 @@ def load_status() -> pd.DataFrame:
                         break
             elif section_raw == "self_refine":
                 # Parse strategy suffix from whichever path level carries it.
-                game_type = parts[1].replace("_self_refine_v1", "")
+                exp_name = parts[1]
+                is_retry = exp_name.endswith("_retry3")
+                game_type = exp_name.replace("_self_refine_v1_retry3", "").replace("_self_refine_v1", "")
                 model_size = parts[2]
                 p1 = p2 = None
                 for piece in reversed(parts[3:-1]):
@@ -164,7 +170,7 @@ def load_status() -> pd.DataFrame:
 
             if section_raw == "section_one":
                 retry = "retry" if condition == "retry3" else "no_retry"
-            elif section_raw == "section_two":
+            elif section_raw in ("section_two", "self_refine"):
                 retry = "retry" if is_retry else "no_retry"
             else:
                 retry = "no_retry"
@@ -202,16 +208,17 @@ def load_status() -> pd.DataFrame:
     if not df.empty:
         sr = df[df["Section"] == "self_refine"]
         for _, row in sr.iterrows():
-            existing_keys.add((row["Game"], row["Model Size"], row["Pair"], row["Condition"]))
+            existing_keys.add((row["Game"], row["Model Size"], row["Pair"], row["Condition"], row["Retry"]))
 
     placeholders = []
-    for game, size, pair, cond, _ in _sr_condition_dirs():
-        if (game, size, pair, cond) not in existing_keys:
+    for game, size, pair, cond, _, is_retry in _sr_condition_dirs():
+        retry_val = "retry" if is_retry else "no_retry"
+        if (game, size, pair, cond, retry_val) not in existing_keys:
             placeholders.append({
                 "Section": "self_refine",
                 "Game": game,
                 "Condition": cond,
-                "Retry": "no_retry",
+                "Retry": retry_val,
                 "Model Size": size,
                 "Pair": pair,
                 "Setup": "-",
