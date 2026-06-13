@@ -64,7 +64,7 @@ The proposed self-correction loop (Section~\ref{sec:retry-ablation}) corrects mo
 \end{figure}
 
 
-The retry loop does not materially change the rankings. Comparing win rates under no retries and retry-3 gives a Spearman $\rho$ of $0.92$, and the pooled win rate by family and tier preserves the relative ordering of families (Figure~\ref{fig:winrate-retry-ablation}, Appendix~\ref{ap3:additional-results}). Because the retry loop preserves the overall ranking while recovering lost games, the rest of the chapter focuses on the retry-3 results.
+The retry loop does not materially change the rankings. Comparing win rates under no retries and retry-3 gives a Spearman correlation $\rho$ of $0.92$, and the pooled win rate by family and tier preserves the relative ordering of families (Figure~\ref{fig:winrate-retry-ablation}, Appendix~\ref{ap3:additional-results}). Because the retry loop preserves the overall ranking while recovering lost games, the rest of the chapter focuses on the retry-3 results.
 
 \subsection{Model-Family Performance}
 
@@ -72,7 +72,7 @@ The retry loop does not materially change the rankings. Comparing win rates unde
 
 We now ask the central question: which model family is the best negotiator? Throughout this subsection, win rate and payoff are calculated over payoff-valid completed games (excluding draws) with both seats pooled.
 
-As Figure~\ref{fig:cross-play-family-winrate} shows, the answer is remarkably consistent. In every single tier, the pooled WinRate across the three games shows that Qwen is the best performer, winning 63.0\%, 63.4\% and 66.8\% of games, followed by Gemma (44.5-45.3\%) and Mistral (38.0-42.8\%). Table~\ref{tab:cross-play-family-summary} summarizes negotiation performance by family and tier pairing the pooled win rate with the mean payoff in each game’s native units (resource delta in Trading, dollars kept in Ultimatum and profit in BuySell). 
+As Figure~\ref{fig:cross-play-family-winrate} shows, the answer is consistent. In every single tier, the pooled WinRate across the three games shows that Qwen is the best performer, winning 63.0\%, 63.4\% and 66.8\% of games, followed by Gemma (44.5-45.3\%) and Mistral (38.0-42.8\%). Table~\ref{tab:cross-play-family-summary} summarizes negotiation performance by family and tier pairing the pooled win rate with the mean payoff in each game’s native units (resource delta in Trading, dollars kept in Ultimatum and profit in BuySell). 
 
 \begin{figure}
     \centering
@@ -162,9 +162,7 @@ Section~\ref{sec:role-and-turn} showed that in Ultimatum the role matters more t
     \label{fig:ultimatum-opening-offer}
 \end{figure}
 
-\textcite{bianchi_how_2024} noticed irrational behaviour in some proprietary models playing this variation of the Ultimatum game in which players are allowed to counter the proposals they receive. Yet in some circumstances some models reject offers outright without a counter-offer, which is a value-destroying move for both.
-
-These rejections are concentrated in the very-small tier (Figure~\ref{fig:ultimatum-rejection-rate}), where \texttt{Gemma-3-4B} rejects 32.2\% of the splits (Mistral 11.9\%, Qwen 0\%). Rejected games do start from more aggressive openings (a mean offer of \$18.9, against \$24.1 in accepted games), but rejection remains value-destroying in a situation where a counter-proposal would benefit both sides.
+\textcite{bianchi_how_2024} noticed irrational behaviour in some proprietary models playing this variation of the Ultimatum game in which players are allowed to counter the proposals they receive. Yet in some circumstances some models reject offers outright without a counter-offer, which is a value-destroying move for both. We also noticed this irrational behaviors in open-weight models. These rejections are concentrated in the very-small tier (Figure~\ref{fig:ultimatum-rejection-rate}), where \texttt{Gemma-3-4B} rejects 32.2\% of the splits (Mistral 11.9\%, Qwen 0\%). Rejected games do start from more aggressive openings (a mean offer of \$18.9, against \$24.1 in accepted games), but rejection remains value-destroying in a situation where a counter-proposal would benefit both sides.
 
 \begin{figure}
     \centering
@@ -178,15 +176,18 @@ These rejections are concentrated in the very-small tier (Figure~\ref{fig:ultima
 
 % BuySell is positive sum: which both parties can profit. Seller cost 40, buyer value 60, so any price in between splits a 20-ZUP surplus.
 
-Any price between the seller's cost of production (40) and the buyer's willingness to pay (60) creates a positive payoff for both sides. 
+BuySell is a positive-sum game in which any price between the seller's cost of production (40) and the buyer's willingness to pay (60) creates a positive payoff. The buyer captures most of the surplus, which leads to the second-player winrate advantage shown in Figure~\ref{fig:cross-play-role-effect}. The average deal gives the seller 5.7 ZUP and the buyer 14.3 ZUP (Figure~\ref{fig:buysell-price-surplus}).
+
+\begin{figure}
+    \includegraphics[width=0.72\linewidth]{figures/results/cross_play/buysell_surplus_split.png}
+    \caption{TODO}
+    \label{fig:buysell-price-surplus}
+\end{figure}
 
 % Anchoring effect, where there's strong correlation between the final accepted price and the initial price proposal also occurs in open-weight models (ρ = 0.752, close to GPT-4's 0.716).  This means the initial proposal is a strong anchor for the  final accepted price. Open higher, close higher (Fig 4.7)
-
-%Buyers win the split: 54.8% of deals close below the 50 midpoint, 28.8% at 50, mean final price 45.7; buyer captures 14.3 ZUP vs seller's 5.7 (Figs C.6/C.7).
-
 %Qwen sellers open high (48.5 → 49.0); Gemma sellers anchor too low (40.2 → 43.0). 
 
-%Irrationality: Gemma-3-12B-it opens below its own 40 cost in 76.7% of games, 46.7% of deals close below cost; Qwen almost never does.
+\textcite{bianchi_how_2024} observed an anchoring effect in NegotiationArena, where the final accepted price correlates strongly with the initial proposed price. We find the same in open-weight models: Figure~\ref{fig:buysell-seller-anchoring} shows a 0.752 correlation between the seller's opening price and the final agreed price, close to the 0.716 they report. The difference in behavior between Qwen and Gemma illustrates this. Qwen sellers open at 48.5 on average and settle at 49.0, while Gemma sellers open much lower on average, at 40.2, and settle at 43.0.
 
 \begin{figure}
     \centering
@@ -195,7 +196,9 @@ Any price between the seller's cost of production (40) and the buyer's willingne
     \label{fig:buysell-seller-anchoring}
 \end{figure}
 
+%Irrationality: Gemma-3-12B-it opens below its own 40 cost in 76.7% of games, 46.7% of deals close below cost; Qwen almost never does.
 
+We also observe some irrational pricing. Across games, sellers open bellow their production cost in 16.2\% of games, and 12.9\% of completed deals close below cost. \texttt{Gemma-3-12B-it} is particularly irrational, opening bellow production cost in 76.7\% of games. Qwen on the other hand almost never make this error.
 
 \section{Social Personas} \label{sec:results-personas}
 \section{Self-Refine} \label{sec:results-self-refine}

@@ -67,7 +67,7 @@ Negotiation performance is measured using the two metrics adopted in the Negotia
 
 \begin{itemize}
     \item \textbf{Win Rate:} Percentage of \textit{completed} games in which a party obtained a higher payoff than the other. As in NegotiationArena, ties are ignored.
-    \item \textbf{Average Payoff:} Average number of resources of each agent after the trade. Its definition is game-specific: in Price Negotiation it is the surplus ($\text{price} - \text{cost}$ for the seller, $\text{value} - \text{price}$ for the buyer); in Trading it is the net change in resource value ($\text{final} - \text{initial}$), which may be negative; and in Ultimatum it is the number of dollars retained.
+    \item \textbf{Average Payoff:} Average number of resources of each agent after the trade. Its definition is game-specific: in Price Negotiation it is the surplus ($\text{price} - \text{cost}$ for the seller, $\text{value} - \text{price}$ for the buyer); in Trading it is the net change in resource value ($\text{final} - \text{initial}$) and in Ultimatum it is the number of dollars retained.
     \item \textbf{Completion Rate:} Proportion of games that reach a final state. Because smaller open-weight models frequently violated the response format, this metric is reported alongside the others, and is the primary metric for the retry ablation.
 \end{itemize}
 
@@ -130,7 +130,7 @@ The first contribution follows the experimental framework of NegotiationArena \c
 
 \subsection{Model Cross-Play} \label{sec:cross-play}
 
-To measure how well current open-weight models negotiate among themselves, we run a round-robin within each parameter tier. Each ordered pairing is played for 30 games in each of the three scenarios, using the default parameters of Table~\ref{tab:game-setup}. Because the games are role-asymmetric, both orderings of each pair are executed. The analysis of win rate and average payoff over all opponents allows for a per-model ranking. 
+To measure how well current open-weight models negotiate among themselves, we run a round-robin within each parameter tier. Each ordered pairing is played for 30 games in each of the three scenarios, using the default parameters of Table~\ref{tab:game-setup}. Because the games are role-asymmetric, both orderings of each pair are executed. 
 
 \subsection{Social Personas} \label{sec:personas}
 
@@ -162,7 +162,7 @@ Following \textcite{bianchi_how_2024}, we analyse whether assigning a social per
 
 \subsection{Self-Correction} \label{sec:retry-ablation} 
 
-A practical obstacle with smaller open-weight models was that they frequently produced responses violating the required tag format, which could not be parsed into a valid move and ended the game prematurely. To address this, we test whether giving a model the opportunity to correct its formatting helps. When a response fails to parse, the agent receives an error message containing its offending response together with the parser error, and is asked to resubmit its move in the correct format; this repeats up to \texttt{max\_retries} times, after which the game ends unparsed and is counted as incomplete. Figure~\ref{fig:retry_loop} illustrates this loop. We compare the baseline (\texttt{max\_retries}\,$=0$) against \texttt{max\_retries}\,$=3$ across both experiments, using Completion Rate as the primary metric.
+A practical obstacle with smaller open-weight models was that they frequently produced responses violating the required tag format, which could not be parsed into a valid move and ended the game prematurely. To address this, we test whether giving a model the opportunity to correct its formatting works. When a response fails to parse, the agent receives an error message containing its offending response together with the parser error, and is asked to resubmit its move in the correct format; this repeats up to \texttt{max\_retries} times, after which the game ends unparsed and is counted as incomplete. Figure~\ref{fig:retry_loop} illustrates this loop. We compare the baseline (\texttt{max\_retries}\,$=0$) against \texttt{max\_retries}\,$=3$ across both experiments.
 
 \begin{figure}
     \centering
@@ -177,7 +177,7 @@ A practical obstacle with smaller open-weight models was that they frequently pr
 % Baseado no artigo \cite{madaan_self-refine_2023} 
 % Citar prompts que estão no anexo;
 
-We then investigate whether a model negotiates better when given the chance to critique and rewrite its own move before committing to it. As introduced in Section~\ref{sec:self-refinement}, we apply the Self-Refine algorithm of \textcite{madaan_self-refine_2023}: rather than immediately committing to an answer, the agent cycles through a \textit{draft $\rightarrow$ feedback $\rightarrow$ refine} loop, using its own critique as the only source of feedback. Figure~\ref{fig:self_refine_loop} illustrates the adapted loop.
+We then investigate whether a model negotiates better when given the chance to critique and rewrite its own move before committing to it. As introduced in Section~\ref{sec:self-refinement}, we apply the Self-Refine algorithm of \textcite{madaan_self-refine_2023}: rather than immediately committing to an answer, the agent cycles through a \textit{draft $\rightarrow$ feedback $\rightarrow$ refine} loop. Figure~\ref{fig:self_refine_loop} illustrates the adapted loop.
 
 \begin{figure}
     \centering
@@ -186,7 +186,7 @@ We then investigate whether a model negotiates better when given the chance to c
     \label{fig:self_refine_loop}
 \end{figure}
 
-Whenever an agent must choose a move, it first produces an initial draft and then runs two critique-and-rewrite iterations. Each iteration prompts the agent to critique its current draft along the following negotiation-specific axes:
+Whenever an agent must choose a move, it first produces an initial draft and then runs two critique-and-rewrite iterations. Each iteration prompts the agent to critique its current draft along the following criteria:
 
 \begin{itemize}
 \item \textbf{Format:} whether every required tag is present and parseable;
@@ -198,7 +198,7 @@ Whenever an agent must choose a move, it first produces an initial draft and the
 
 A second \textit{refine} prompt then asks the model to rewrite the response, incorporating the flagged changes. The critique and intermediate drafts are produced on a scratch copy of the conversation; once refinement ends, this scratch copy is discarded and only the final response is appended to the shared game history.
 
-We evaluate the four combinations obtained by assigning each party either the default or the Self-Refine strategy: both default, both Self-Refine, and the two mixed conditions. As in the social-persona experiment (Section~\ref{sec:personas}), every condition is run in self-play so that any difference is attributable to the strategy rather than to a capability gap between models; each condition is played for 30 games across all three scenarios and model tiers. The feedback and refinement prompts are given in Appendix~\ref{ap1:sr-prompts}.
+We evaluate the four combinations obtained by assigning each party either the default or the Self-Refine strategy: both default, both Self-Refine, and the two mixed conditions. As in the social-persona experiment (Section~\ref{sec:personas}), every condition is run in self-play; each condition is played for 30 games across all three scenarios and model tiers. The feedback and refinement prompts are given in Appendix~\ref{ap1:sr-prompts}.
 
 Unlike the previous experiments, each move requires five model calls: one initial draft plus, for each of the two iterations, one feedback and one rewrite call (Table~\ref{tab:inference-cost}). Whether this increase in inference cost delivers a measurable improvement in negotiation performance is one of the main questions taken up in the results chapter.
 
@@ -219,7 +219,7 @@ In the \textbf{drafting} phase each member generates a possible move from the sa
 
 In the \textbf{discussion} phase every member is shown its own draft alongside its teammates' proposals. Each member then keeps, merges or adopts whichever proposal it judges strongest for the team and re-emits a full move. The discussion prompt is given in Appendix~\ref{ap1:team-prompts}.
 
-Finally, in the \textbf{consensus} phase, the revised drafts form a slate of candidate moves and each member ranks the entire slate from best to worst for the team's payoff (Listing~\ref{lst:team-ranking}). A Borda count over these rankings selects the move: in a ranking of $s$ candidates, the candidate in the top position ($k=0$) earns $s-1-k = s-1$ points, the next $s-2$, and so on down to $0$ for the last. The move with the highest total wins, with a deterministic lowest-index tie-break. Unlike the Similarity-Based Borda Voting strategy of \textcite{S_nchez_Anguix_2013}, accepting the opponent's offer is not handled separately; it is simply one of the moves a member can draft, so a single vote decides both \textit{what} to propose and whether to \textit{accept}, with no need for a separate voting phase to determine acceptance.
+Finally, in the \textbf{consensus} phase, the revised drafts form a slate of candidate moves and each member ranks the entire slate from best to worst (Listing~\ref{lst:team-ranking}). A Borda count over these rankings selects the move: in a ranking of $s$ candidates, the candidate in the top position ($k=0$) earns $s-1-k = s-1$ points, the next $s-2$, and so on down to $0$ for the last. The move with the highest total wins. In case of a tie, the move with a lowest index wins. Unlike the Similarity-Based Borda Voting strategy of \textcite{S_nchez_Anguix_2013}, accepting the opponent's offer is not handled separately; it is simply one of the moves a member can draft, so a single vote decides both \textit{what} to propose and whether to \textit{accept}, with no separate voting phase to determine acceptance.
 
 The entire deliberation is private. The drafting, discussion, and ranking prompts are run in place of each member's own conversation, but once the team's move is chosen the history is rolled back to the initial snapshot, and only the agreed move is appended to each member's history. The opposition party therefore sees exactly one move per turn, with none of the internal back-and-forth. One complication follows from this rollback: the reasoning attached to the winning move was written in the context of the discussion and may refer to teammates that are no longer visible once the deliberation is erased. To keep each member's private history coherent on subsequent turns, before committing the move, the winning member rewrites its \texttt{<reason>} block into a first-person reasoning that mentions no teammates, candidates, ranking or ``team'', while keeping the same strategy and conclusion (Listing~\ref{lst:team-reason}).
 
