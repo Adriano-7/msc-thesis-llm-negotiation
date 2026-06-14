@@ -54,7 +54,7 @@ Failures are also unevenly distributed across models (Figure~\ref{fig:parse-erro
 \end{figure}
 
 % DOES OUR RETRY LOOP WORK? IF SO DOES IT CHANGE RESULTS?
-The proposed self-correction loop (Section~\ref{sec:retry-ablation}) corrects most malformed moves. Of the 10\% of moves that triggered a self-correction loop, 75\% were fixed on the first retry and 93\% within the three-retry budget (Figure~\ref{fig:retried-moves-resolution}). Only 28 games still failed to complete, almost all of them (26 of 28) caused by \texttt{Gemma-3-4B-it}. Qwen triggered most of the retries (284 of 414) but almost always recovered.
+The proposed self-correction loop (Section~\ref{sec:retry-ablation}) corrects most malformed moves. Of the 10\% of moves that triggered a self-correction loop, 75\% were fixed on the first retry and 93\% within the three-retry budget (Figure~\ref{fig:retried-moves-resolution}). Excerpt~\ref{ex:gemma-trade} shows an example where Gemma-3 27B succesfully recovers from a malformed move. Only 28 games still failed to complete, almost all of them (26 of 28) caused by \texttt{Gemma-3-4B-it}. Qwen triggered most of the retries (284 of 414) but almost always recovered.
 
 \begin{figure}
     \centering
@@ -62,6 +62,21 @@ The proposed self-correction loop (Section~\ref{sec:retry-ablation}) corrects mo
     \caption{Retry-3 recovery breakdown. Most corrected moves parse after one retry.}
     \label{fig:retried-moves-resolution}
 \end{figure}
+
+\begin{negotiationexcerpt}[label=ex:gemma-trade]{Recovering from a placeholder left in the trade}{Trading, 24--27B tier, Gemma~3 27B (retry-3 condition); run \texttt{1775874973711}}
+\speaker{Gemma 3 27B (as Player RED)}
+\elide \texttt{<player answer> NONE </player answer>}\\
+\texttt{<newly proposed trade> Player RED Gives X: 10, Y: 2 | Player BLUE Gives X: amount, Y: amount </newly proposed trade>}
+
+\medskip
+\speaker{Parser feedback}
+Your previous response could not be parsed. \elide
+
+\medskip
+\speaker{Gemma 3 27B (retry)}
+\texttt{<reason>}My apologies for the previous error. I will correct the trade proposal format.~\elide\texttt{</reason>} \elide
+\texttt{<newly proposed trade> Player RED Gives X: 10, Y: 2 | Player BLUE Gives X: 5, Y: 10 </newly proposed trade>}
+\end{negotiationexcerpt}
 
 
 The retry loop does not materially change the rankings. Comparing win rates under no retries and retry-3 gives a Spearman correlation $\rho$ of $0.92$, and the pooled win rate by family and tier preserves the relative ordering of families (Figure~\ref{fig:winrate-retry-ablation}, Appendix~\ref{ap3:additional-results}). Because the retry loop preserves the overall ranking while recovering lost games, the rest of the chapter focuses on the retry-3 results.
@@ -130,7 +145,7 @@ The same asymmetries appear with open-weight models. Figure~\ref{fig:cross-play-
     \label{fig:cross-play-role-effect}
 \end{figure}
 
-\subsection{Game-Specific Findings}
+\subsection{Game-Specific Analysis}
 
 %Previous subsection averaged over three very different games. Trading is zero-sum; BuySell is positive-sum with fixed surplus and Ultimatum is dominated by the proposer seat;
 
