@@ -157,7 +157,7 @@ The previous subsections averaged over three games with very different structure
 
 Since both resources (X and Y) have the same value and each player starts with 30 units in total (25 of one resource, 5 of the other), every deal is zero-sum: a gain by one party is a loss of the same magnitude to the other. This may help explain the role effect in Figure~\ref{fig:cross-play-role-effect}. The second player has more information, evaluating an offer before making a counter-proposal, while the first mover must reveal what it is willing to give up.
 
-Figure~\ref{fig:pairwise-trading} shows that \texttt{Qwen-3.5-27B} is the strongest model, and the only one to win from both seats. As player~2 it wins every matchup; as player~1 it beats \texttt{Gemma-3-27B-it} but splits evenly with \texttt{Mistral-Small-3.2-24B}. Gemma's weakness in the Trading game is also evident in its being the only model family with a negative mean Trading payoff in every tier (Table~\ref{tab:cross-play-family-summary}).
+Figure~\ref{fig:pairwise-trading} shows that \texttt{Qwen-3.5-27B} is the strongest Trading model in the 24-27B tier, and the only one to win from both seats. As player~2 it wins every matchup; as player~1 it beats \texttt{Gemma-3-27B-it} but splits evenly with \texttt{Mistral-Small-3.2-24B}. Gemma's weakness in the Trading game is also evident in its being the only model family with a negative mean Trading payoff in every tier (Table~\ref{tab:cross-play-family-summary}).
 
 \paragraph{Multi-Turn Ultimatum.}
 
@@ -188,7 +188,7 @@ BuySell is a positive-sum game in which any price between the seller's cost of p
 
 \begin{figure}
     \centering
-    \includegraphics[width=0.75\linewidth]{figures/results/cross_play/buysell_surplus_split.png}
+    \includegraphics[width=0.5\linewidth]{figures/results/cross_play/buysell_surplus_split.png}
     \caption{Mean split of the 20-ZUP BuySell surplus between the seller (Player~1) and the buyer (Player~2), by parameter tier and pooled across all deals, under retry-3. The buyer captures the larger share, keeping 14.3 ZUP on average against the seller's 5.7.}
     \label{fig:buysell-price-surplus}
 \end{figure}
@@ -196,20 +196,35 @@ BuySell is a positive-sum game in which any price between the seller's cost of p
 % Anchoring effect, where there's strong correlation between the final accepted price and the initial price proposal also occurs in open-weight models (ρ = 0.752, close to GPT-4's 0.716).  This means the initial proposal is a strong anchor for the  final accepted price. Open higher, close higher (Fig 4.7)
 %Qwen sellers open high (48.5 → 49.0); Gemma sellers anchor too low (40.2 → 43.0). 
 
-\textcite{bianchi_how_2024} observed an anchoring effect in NegotiationArena, where the final accepted price correlates strongly with the initial proposed price. We find the same in open-weight models: Figure~\ref{fig:buysell-seller-anchoring} shows a 0.752 correlation between the seller's opening price and the final agreed price, close to the 0.716 they report. The difference in behavior between Qwen and Gemma illustrates this. Qwen sellers open at 48.5 on average and settle at 49.0, while Gemma sellers open much lower on average, at 40.2, and settle at 43.0.
+\textcite{bianchi_how_2024} observed an anchoring effect in NegotiationArena, where the final accepted price correlates strongly with the initial proposed price. We find the same in open-weight models: Figure~\ref{fig:buysell-seller-anchoring} shows a 0.752 correlation between the seller's opening price and the final agreed price, close to the 0.716 they report. The difference in behavior between Qwen and Gemma illustrates this. Qwen sellers open at 48.5 on average and settle at 49.0, while Gemma sellers open lower on average, at 40.2, and settle at 43.0.
 
 \begin{figure}
     \centering
-    \includegraphics[width=0.75\linewidth]{figures/results/cross_play/buysell_seller_anchoring.png}
+    \includegraphics[width=0.5\linewidth]{figures/results/cross_play/buysell_seller_anchoring.png}
     \caption{Seller opening price versus final agreed price in BuySell. The strong positive relationship indicates anchoring: opening higher is associated with closing higher.}
     \label{fig:buysell-seller-anchoring}
 \end{figure}
 
 %Irrationality: Gemma-3-12B-it opens below its own 40 cost in 76.7% of games, 46.7% of deals close below cost; Qwen almost never does.
 
-We also observe some irrational pricing. Across games, sellers open bellow their production cost in 16.2\% of games, and 12.9\% of completed deals close below cost. \texttt{Gemma-3-12B-it} is particularly irrational, opening bellow production cost in 76.7\% of games. Qwen on the other hand almost never make this error.
+We also observe some irrational pricing. Across games, sellers open below their production cost in 16.2\% of games, and 12.9\% of completed deals close below cost. \texttt{Gemma-3-12B-it} is particularly irrational, opening below production cost in 76.7\% of games. Qwen on the other hand almost never make this error.
 
 \section{Social Personas} \label{sec:results-personas}
+
+% EFFECT OF PERSONAS IN OUR MODELS VS BIANCHI ET AL.
+
+% Bianchi et al -> In GPT_4 Self-Play, assigning Player 2 a cunning or desperate persona raised both winrate and payoff
+
+\textcite{bianchi_how_2024} reported that in GPT-4 self-play, assigning Player 2 a \textit{cunning} or \textit{desperate} persona raised both its win rate and payoff across all three games. We test whether this result carries over to the selected open-weight models.
+
+The persona is assigned only to P2, and both seats share the same model (Subsection~\ref{sec:personas}), so the results reflect both how a model behaves under a persona and how it responds to one as P1.
+
+% The clean result does not transfer; The persona effect is game and model specific
+% Cunning liftes P2 winrate on the ultimatum from 0.14 -> 0.71 
+% Desperate raises buysell win rate from 0.75 to 0.97
+% In Trading neither persona improves P2’s decisive win rate: 0.766 default, 0.641 desperate, 0.719 cunning
+
+\textcite{bianchi_how_2024}'s result does not hold for all our open-weight models. The effect is game-specific (Figure~\ref{fig:persona-winrate-game}) and varies significantly across models. Cunning produces the largest win-rate gain, lifting P2's Ultimatum win rate from 14\% to 71\%; desperate raises the buyer's BuySell win rate from 75\% to 97\%. In Trading, neither persona helps, win rate drops from 76.6\% (default) to 64.1\% (desperate) and 71.9\% (cunning).
 
 \begin{figure}
     \centering
@@ -221,6 +236,18 @@ We also observe some irrational pricing. Across games, sellers open bellow their
     \label{fig:persona-winrate-game}
 \end{figure}
 
+%The ultimatum winrate is misleading -> cunning increases the number of ultimatum games that don't reach an aggreement -> Win rate is computed only over games that reach a decisive outcome, so it is silent on how often a deal is reached at all
+% Looking at payoff, personas decrease it ($26.2 at default, $16.5 cunning and $28.5 for desperate)
+
+Analyzing win rate alone is misleading, as it excludes no-deals in which both sides score zero. Cunning in Ultimatum illustrates this well. Despite the large win-rate gain, it returns the lowest mean payoff of the three conditions (\$16.5 against \$26.2 at default and \$28.5 for desperate). This same behavior appears in BuySell where desperate raises average payoff (15.1 against 14.0 ZUP) while cunning lowers it (12.3).
+
+% Cunning in ultimatum increases the no acceptance rate to 73% agains a 13% default
+% Though it increases the number of rejections, whena  deal is made it increases the payff ($61.7 average against $30.2 default) -> High risk high reward like bianchi et al said
+
+%Desperate has a moderate effect on the no deal rate in the trading and ultimatum game but highly increases the no-deal rate in the buysell game sending it to 0.293 compared to 0.011 for default and 0.402 for cunning
+
+This difference in win rate and payoff is understandable by analyzing Figure~\ref{fig:persona-nodeal-game}. Cunning raises the no-deal rate in every game, and in the Ultimatum 73\% of games end in rejection against 13\% under default and 12\% under desperate. Cunning in Ultimatum is therefore high-risk, high-reward, which is one behavior \textcite{bianchi_how_2024} also flagged for GPT-4.  
+
 \begin{figure}
     \centering
     \includegraphics[width=0.8\linewidth]{figures/results/personas/nodeal_by_persona_game.png}
@@ -229,6 +256,35 @@ We also observe some irrational pricing. Across games, sellers open bellow their
     rate in every game and sends most Ultimatum games to a destroyed pot.}
     \label{fig:persona-nodeal-game}
 \end{figure}
+
+
+% porquê -> 
+    % figura 4.11 -> The default P2 asks for an even split (median demand 50) against a P1 that offers a quarter (median 25). Cunning -> P2’s median demand jumps to 80 while P1 still offers only 40
+
+    % Excerpt 4.2 -> Esta demanda, conjugada com um texto mais agressivo pode resultar em dois tipos de resposta:
+        %Pode resultar em deals melhores (se analisarmos o payoff apenas quando um acordo é alcançado o payoff é de 61.69 em média comparado com 30.21 default e 32.47 desperate), como é caso do excerto onde a pressão conseguiu extrair $99 de um pot de $100
+
+        %O insulto pode levar o P1 a rejeitar como é o caso do excerto embaixo. Ou até mesmo reparamos que o próprio P2 com a personalidade de cunning rejeita um número grande de deals
+
+
+%Ultimatum split proposals by persona:
+% The default P2 asks for an even split (median demand 50) against a P1 that offers a quarter (median 25)
+
+% Desperate -> P2 lowers its ask to a median of 60 while the begging draws P1 up to 40 
+% Cunning -> P2’s median demand jumps to 80 while P1 still offers only 40
+
+% Cunning also reshapes the opening move: it rejects 0.58 of first offers outright, against 0.13 at default -> as i told in the previous subchapter rejecting in the ultimatum game without a counter proposal is really stupid so cunning increases stupidity xD
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.78\linewidth]{figures/results/personas/ultimatum_offer_extremity.png}
+    \caption{Ultimatum split proposals by persona (retry-3): filled boxes are the share P2
+    demands when it counter-proposes, open boxes the share P1 offers to P2. Cunning widens
+    the gap between what P2 asks and what P1 is willing to concede.}
+    \label{fig:persona-offer-extremity}
+\end{figure}
+
+% the transcript shows the high risk high reward side of a cunning persona; on one situration  the a cunning agent extracts $99 of a $100 pot; in another the insults and hostile discourse lead to a rejection from the P1
 
 \begin{negotiationexcerpt}[label=ex:persona-cunning-two-sided]{Two sides of the cunning persona}{Ultimatum self-play, cunning P2; two retry-3 runs}
 \excerptlog{Downside: insults trigger rejection}{Ministral~3 14B; run \texttt{1778974783199}}
@@ -260,16 +316,21 @@ We also observe some irrational pricing. Across games, sellers open bellow their
 \end{negotiationexcerpt}
 
 
+% But the effect varies widely across models;
 
+%Cunning 
+%Ultimatum:
+%      - Gemma-3-27B-it(+0.90), Qwen-3.5-27B (+0.80) and Qwen-3.5-9B (+0.71)
+%      - Gemma-3-4B-it is flat and Ministral-3-8B falls by 0.47
 
-\begin{figure}
-    \centering
-    \includegraphics[width=0.78\linewidth]{figures/results/personas/ultimatum_offer_extremity.png}
-    \caption{Ultimatum split proposals by persona (retry-3): filled boxes are the share P2
-    demands when it counter-proposes, open boxes the share P1 offers to P2. Cunning widens
-    the gap between what P2 asks and what P1 is willing to concede.}
-    \label{fig:persona-offer-extremity}
-\end{figure}
+% BuySell:
+% similarly mixed, with cunning producing both large gains and large losses depending on the model
+%      - Qwen3-14B. (-0.68)
+
+%Desperate 
+% BuySell:
+    % - pleading buyer pulls the median accepted price from 45 to 40 ZUP 
+    % -  0.29 BuySell no-deal rate, against 0.01 at default
 
 
 \begin{figure}
@@ -282,6 +343,7 @@ We also observe some irrational pricing. Across games, sellers open bellow their
     \label{fig:persona-effect-spread}
 \end{figure}
 
+% A pleading buyer can talk a default seller below its own production cost; in Excerpt 4.3 the desperation leads the seller to accept 12 ZUP for a good that cost 40
 
 \begin{negotiationexcerpt}[label=ex:persona-desperate-buysell]{A pleading buyer talks the seller below cost}{BuySell, 12--14B tier, Ministral~3 14B self-play, desperate P2; run \texttt{1779064096831}}
 \speaker{P1 (default seller)} Hello Player BLUE! I'm selling X (1 unit) and would like to propose a trade: 25 ZUP for it. \elide I'm open to reasonable counteroffers!
@@ -298,7 +360,7 @@ We also observe some irrational pricing. Across games, sellers open bellow their
 \noindent Final price: 12 ZUP, below the seller's 40-ZUP cost --- seller surplus $-28$, buyer surplus $+48$.
 \end{negotiationexcerpt}
 
-
+%  Persona value is thus conditional on both game and model
 
 \section{Self-Refine} \label{sec:results-self-refine}
 
@@ -309,8 +371,6 @@ We also observe some irrational pricing. Across games, sellers open bellow their
 
 \speaker{Final response (after two iterations)} I propose that I give you 10 Dollars. This is fair and gives you an incentive to accept.
 \end{negotiationexcerpt}
-
-
 
 \section{Team Negotiation} \label{sec:results-team}
 
