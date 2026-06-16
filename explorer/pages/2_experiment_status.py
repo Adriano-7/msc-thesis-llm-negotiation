@@ -26,12 +26,9 @@ _STRAT_TO_COND = {
 }
 
 _SR_GAMES = {
-    "trading_self_refine_v1":          "trading",
-    "buysell_self_refine_v1":          "buysell",
-    "ultimatum_self_refine_v1":        "ultimatum",
-    "trading_self_refine_v1_retry3":   "trading",
-    "buysell_self_refine_v1_retry3":   "buysell",
-    "ultimatum_self_refine_v1_retry3": "ultimatum",
+    "trading_self_refine_v1":   "trading",
+    "buysell_self_refine_v1":   "buysell",
+    "ultimatum_self_refine_v1": "ultimatum",
 }
 
 
