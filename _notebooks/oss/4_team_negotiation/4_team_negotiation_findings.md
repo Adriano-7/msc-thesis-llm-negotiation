@@ -9,12 +9,6 @@
 ![](../figures/4_team_negotiation/team_vs_single_winrate.png)
 ![](../figures/4_team_negotiation/team_vs_single_payoff.png)
 
-* **Deliberation does not overcome the structural role asymmetry**  
-- The team wins from the same seats that already advantage single agents: Trading and BuySell favor P2, while Ultimatum favors P1.
-
-
-![](../figures/4_team_negotiation/seat_dominates.png)
-
 * **Heterogeneous teams do not outperform homogeneous ones**  
     
 - Holding seat and opponent fixed, 17 of 18 homogeneous-vs-heterogeneous cells have overlapping intervals.  
