@@ -1,7 +1,7 @@
-"""Notebook style + descriptive-statistics helpers.
+"""Notebook plotting style + descriptive-statistics helpers.
 
-The cross-play notebook imports from here so fonts, colors, CI conventions and
-the ties-excluded win-rate definition are encoded once.
+The OSS notebooks import from here so fonts, colors, CI conventions and common
+plot dimensions are encoded once.
 """
 
 import os
@@ -20,23 +20,39 @@ HALF_WIDTH = 3.0
 
 def apply_thesis_style():
     mpl.rcParams.update({
-        "font.family": "serif",
+        "font.family": "sans-serif",
+        "font.sans-serif": ["Open Sans", "Noto Sans", "Liberation Sans", "DejaVu Sans"],
+        "mathtext.fontset": "dejavusans",
         "font.size": 9,
-        "axes.titlesize": 9,
+        "axes.titlesize": 11,
+        "axes.titleweight": "normal",
+        "axes.titlecolor": "#3D3C38",
+        "axes.titlepad": 10,
         "axes.labelsize": 9,
+        "axes.labelcolor": "#3D3C38",
         "xtick.labelsize": 8,
+        "xtick.color": "#3D3C38",
         "ytick.labelsize": 8,
+        "ytick.color": "#3D3C38",
         "legend.fontsize": 8,
+        "legend.frameon": False,
+        "axes.edgecolor": "#8A8880",
+        "axes.linewidth": 0.8,
         "axes.spines.top": False,
         "axes.spines.right": False,
+        "axes.prop_cycle": mpl.cycler(color=[_BLUE, _ORANGE, _GREEN, _RED]),
         "figure.dpi": 150,
+        "figure.titlesize": 11,
         "savefig.format": "pdf",
         "savefig.bbox": "tight",
         "figure.constrained_layout.use": True,
         "axes.grid": True,
+        "axes.grid.axis": "y",
+        "grid.color": "#EAEDF0",
         "grid.linewidth": 0.4,
-        "grid.alpha": 0.35,
+        "grid.alpha": 0.9,
         "axes.axisbelow": True,
+        "axes.unicode_minus": False,
     })
 
 
