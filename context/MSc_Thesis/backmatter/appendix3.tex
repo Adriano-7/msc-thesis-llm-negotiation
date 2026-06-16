@@ -1,6 +1,10 @@
-\chapter{Additional Benchmark Results} \label{ap3:additional-results}
+\chapter{Additional Cross-Play Benchmark Results} \label{ap3:additional-results}
 
-This appendix presents supplementary figures and tables for the open-weight benchmark of Section~\ref{sec:results-benchmark}. 
+This appendix contains supplementary material for the cross-play results of Section~\ref{sec:results-benchmark}. Section~\ref{ap3:completion} expands the completion and parse-error analysis, Section~\ref{ap3:winrate-payoff} reports the win rate and payoff breakdowns that the chapter summarises, Section~\ref{ap3:pairwise} gives the full per-pair matrices for each game, and Section~\ref{ap3:excerpts} illustrates with concrete transcripts some of the irrational behaviours discussed in the chapter.
+
+\section{Completion and Parse-Error Self-Correction} \label{ap3:completion}
+
+Figure~\ref{fig:parse-completion-retry-bars} reports the completion rate, comparing the no-retry and three-retry conditions per game and tier. Figure~\ref{fig:parse-errors-by-game} decomposes the no-retry failures by reason. Figure~\ref{fig:moves-needing-retry} reports the percentage of moves that triggered the self-correction loop, the majority of which were triggered by Qwen.
 
 \begin{figure}
     \centering
@@ -18,6 +22,17 @@ This appendix presents supplementary figures and tables for the open-weight benc
 
 \begin{figure}
     \centering
+    \includegraphics[width=0.9\linewidth]{figures/results/cross_play/moves_needing_retry_by_family_game.png}
+    \caption{Moves that triggered the parse-error self-correction loop under retry-3, by family and game. Qwen accounts for most of the retries but, as discussed in Section~\ref{sec:results-benchmark}, almost always recovers within the budget.}
+    \label{fig:moves-needing-retry}
+\end{figure}
+
+\section{Win Rate and Payoff} \label{ap3:winrate-payoff}
+
+Figure~\ref{fig:winrate-retry-ablation} shows that the retry loop preserves the family ordering, supporting the chapter's decision to focus on retry-3. Figure~\ref{fig:cross-play-family-winrate} reports the pooled win rate by family and tier, and Figure~\ref{fig:mean-payoff-family-tier} its payoff counterpart in each game's native units. Figure~\ref{fig:winrate-vs-normalized-payoff} relates the two, making explicit the chapter's recurring caution that win rate and payoff need not move together.
+
+\begin{figure}
+    \centering
     \includegraphics[width=\linewidth]{figures/results/cross_play/winrate_retry_ablation.png}
     \caption{Both-seat pooled cross-play win rate by model family and parameter tier under no retries ($r=0$) and retry-3 ($r=3$). The family ordering is preserved across the two conditions; error bars are 95\% confidence intervals.}
     \label{fig:winrate-retry-ablation}
@@ -29,6 +44,24 @@ This appendix presents supplementary figures and tables for the open-weight benc
     \caption{Both-seat pooled win rate by family and parameter tier under retry-3. The ordering Qwen, Gemma, Mistral is stable across all three tiers.}
     \label{fig:cross-play-family-winrate}
 \end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.80\linewidth]{figures/results/cross_play/mean_payoff_family_tier.png}
+    \caption{Both-seat pooled mean payoff by family and parameter tier under retry-3, in each game's native units. Gemma is the only family with a negative mean Trading payoff at every tier.}
+    \label{fig:mean-payoff-family-tier}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.80\linewidth]{figures/results/cross_play/winrate_vs_normalized_payoff.png}
+    \caption{Win rate against normalised payoff under retry-3. The two metrics are correlated but not interchangeable: a family can win more games while keeping less surplus, which is why the chapter reports both.}
+    \label{fig:winrate-vs-normalized-payoff}
+\end{figure}
+
+\section{Pairwise Cross-Play Matrices} \label{ap3:pairwise}
+
+The figures below give the per-pair win and payoff matrices summarised in Section~\ref{sec:results-benchmark}, one figure per game and one panel per parameter tier. Rows index the model as player 1, and columns index the model as player 2; the top row of each panel reports the row player's win rate (ties excluded) and the bottom row its mean payoff.
 
 \begin{figure}
     \centering
@@ -48,5 +81,41 @@ This appendix presents supplementary figures and tables for the open-weight benc
     \centering
     \includegraphics[width=\linewidth]{figures/results/cross_play/pairwise_buysell_retry3.png}
     \caption{Player~1-perspective pairwise cross-play results for BuySell under retry-3, one panel per parameter tier. Rows index the model as player~1 (seller) and columns the model as player~2 (buyer); the top row reports the row player's win rate (ties excluded) and the bottom row its mean payoff.}
-    \label{fig:pairwise-buysell} 
+    \label{fig:pairwise-buysell}
 \end{figure}
+
+\section{Behavioural Excerpts} \label{ap3:excerpts}
+
+The two transcripts below show examples of irrational behaviours. Excerpt~\ref{ex:buysell-below-cost} shows a seller pricing its object far below production cost, and Excerpt~\ref{ex:trading-self-concession} shows a Trading negotiator conceding more than its opponent even demanded.
+
+\begin{negotiationexcerpt}[label=ex:buysell-below-cost]{A seller prices its object far below production cost}{BuySell, 12--14B tier, Gemma~3 12B seller vs.\ Qwen3 14B; run \texttt{1775029333404}}
+\speaker{P1 (Gemma 3 12B, seller)} Hello Player BLUE, I'm offering my X for 5 ZUP. Let me know what you think!\\
+\texttt{<newly proposed trade> Player RED Gives X: 1 | Player BLUE Gives ZUP: 5 </newly proposed trade>}
+
+\medskip
+\speaker{P2 (Qwen3 14B, buyer)} I accept your offer of 5 ZUP for X. It's a great deal!\\
+\texttt{<player answer> ACCEPT </player answer>}
+
+\medskip
+\noindent The object cost the seller 40 ZUP to produce, so opening at 5 ZUP guarantees a loss before negotiation even begins. The buyer accepts immediately: seller surplus $-35$, buyer surplus $+55$.
+\end{negotiationexcerpt}
+
+\begin{negotiationexcerpt}[label=ex:trading-self-concession]{A negotiator concedes more than its opponent even demanded}{Trading, 24--27B tier, Gemma~3 27B (Player RED) vs.\ Mistral-Small 3.2 24B; run \texttt{1775875077879}}
+\speaker{P1 (Gemma 3 27B)} Let's try to make a deal that benefits us both in this final round.\\
+\texttt{<newly proposed trade> Player RED Gives X: 15 | Player BLUE Gives Y: 3 </newly proposed trade>}
+
+\medskip
+\speaker{P2 (Mistral, counter)} I appreciate the offer, but I'm interested in maximizing my resources. Let's see if we can find a better deal.\\
+\texttt{<newly proposed trade> Player RED Gives X: 20 | Player BLUE Gives Y: 5 </newly proposed trade>}
+
+\medskip
+\speaker{P1 (Gemma 3 27B)} I understand you want to maximize your resources. Let's try to find a middle ground that works for both of us.\\
+\texttt{<newly proposed trade> Player RED Gives X: 22 | Player BLUE Gives Y: 5 </newly proposed trade>}
+
+\medskip
+\speaker{P2 (Mistral)} Thank you for the improved offer. I accept this trade.\\
+\texttt{<player answer> ACCEPT </player answer>}
+
+\medskip
+\noindent Both resources are equally valuable, so this is a zero-sum exchange. Gemma's ``middle ground'' gives away 22 X for only 5 Y (two more X than Mistral itself had asked for in the previous turn) for a net loss of 17 units.
+\end{negotiationexcerpt}
