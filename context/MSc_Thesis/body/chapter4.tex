@@ -292,13 +292,109 @@ change behaviour, sometimes strongly, but these gains are conditional. The main 
 
 \section{Self-Refine} \label{sec:results-self-refine}
 
-\begin{negotiationexcerpt}{Self-critique pushes the proposer toward a more selfish opening}{Ultimatum, 12--14B tier, Qwen3 14B, refine-P1 condition; run \texttt{1779170121551}, turn 0}
+% Does giving a model the opportunity to review and rewrite it move improve their negotiation skills?
+% Five axis (format, payoff, alignment, opponent plausibility, consistency and rule compliance)
+% Self-play in three conditions DD (baseline), RD (Self-Refine on Player 1) and DR (Self-Refine on Player 2)
+
+% Refinement helps, but selectively rather than across the board.
+
+
+\begin{table}
+\centering
+\small
+\caption{Effect of Self-Refine on the structurally disadvantaged seat (P1 in Trading and BuySell, P2 in Ultimatum), by game and parameter tier. \emph{Default} and \emph{Refine} are the seat's win rate under \texttt{DD} (default-vs-default) and under refinement of that seat; $\Delta$WR is their difference in percentage points and $\Delta$Payoff is the payoff change expressed as percentage points of the game's payoff span. $^{\ast}$ marks a bootstrap 95\% CI on the delta that excludes zero.}
+\label{tab:self-refine-disadvantaged}
+\begin{tabular}{llcccc}
+\toprule
+\textbf{Game (seat)} & \textbf{Tier} & \textbf{Default} & \textbf{Refine} & \textbf{$\Delta$WR (pp)} & \textbf{$\Delta$Payoff (pp span)} \\
+\midrule
+\multirow{3}{*}{Trading (P1)}
+  & 4--9B   & 0.196 & 0.340 & $+14.5$        & $+2.4$ \\
+  & 12--14B & 0.180 & 0.370 & $+19.0^{\ast}$ & $+3.7^{\ast}$ \\
+  & 24--27B & 0.074 & 0.228 & $+15.4^{\ast}$ & $+4.0^{\ast}$ \\
+\midrule
+\multirow{3}{*}{Ultimatum (P2)}
+  & 4--9B   & 0.216 & 0.294 & $+7.8$ & $-2.2$ \\
+  & 12--14B & 0.017 & 0.060 & $+4.3$ & $+3.1$ \\
+  & 24--27B & 0.028 & 0.104 & $+7.6$ & $+5.0$ \\
+\midrule
+\multirow{3}{*}{BuySell (P1)}
+  & 4--9B   & 0.421 & 0.462 & $+4.0$         & $+3.1$ \\
+  & 12--14B & 0.143 & 0.128 & $-1.5$         & $+1.1$ \\
+  & 24--27B & 0.610 & 0.407 & $-20.3^{\ast}$ & $-3.1^{\ast}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\subsection{Effects on Win Rate and Payoff}
+
+% When in a structurally disadvantaged seat -> improves in 7 of 9 game x tier cells, with +5.7 win rate and +1.9 percentage points of the payoff span
+% When in already-advantaged seats -> improves only 2 of 9 cells and has  mean shifts of −2.8 percentage points in win rate and −1.4 percentage points of the payoff span
+
+% Important to also speak about which of this game x tier cells are outside CI
+
+% The clearest case where refine hels is Trading as PQ -> raises  win rate by 14–19 percentage points at every tier and its payoff.  It is the only seat that gains on both metrics at all three tiers.
+
+% Ultimatum P2 also gains in win rate (+4 to +8 pp)
+
+% But Sel-Refine isn't always helpful especially in already-strong seats -> Trading P2 loses between 3 and 16 pp of win rate
+
+%Refine's doesn't help across the board, only in specific cases 
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.85\linewidth]{figures/results/self_refine/default_vs_refine_scatter_cells.png}
+    \caption{Matched default-versus-refine outcome for each \textit{game $\times$ seat $\times$ tier} cell, pooled across the three model families. The $x$-axis is the seat's \texttt{DD} outcome and the $y$-axis its refined outcome, so points above the diagonal are gains. Colour marks the structurally disadvantaged seat (P1 in Trading/BuySell, P2 in Ultimatum), the marker the tier, and a dark ring a delta whose bootstrap 95\% CI excludes zero. The payoff panel normalises each game to its payoff span.}
+    \label{fig:refine-scatter}
+\end{figure}
+
+
+\subsection{How Refinement Changes the Move}
+
+% Parsing the initial draft and the committed move and scoring each by the payoff the proposing agent would receive if it were accepted
+
+%  it hardens more often than it softens, most strongly in Trading (harden ≈ 0.46– 0.60)
+% A high percentage of refines makes no changes at all (for example, 0.36 in medium BuySell)
+
+
+% In structurally weak seats -> Trading first mover hardens in 40.8% of traces against 18.6% softening, and the BuySell seller in 29.9% against 24.0%; In the Ultimatum responder 77.7% doesnt change at all
+
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/results/self_refine/refine_revision_direction.png}
+    \caption{Direction of the refinement loop's revisions by game and tier, comparing the initial draft with the committed move. A revision \emph{hardens} if it raises the agent's own payoff-if-accepted, \emph{softens} if it lowers it, and is \emph{no move} if the offer is unchanged. Where the offer moves, hardening dominates, most clearly in Trading.}
+    \label{fig:refine-revision-direction}
+\end{figure}
+
+%
+
+\begin{negotiationexcerpt}[label=ex:refine-ultimatum-harden]{Self-critique pushes the proposer toward a more selfish opening}{Ultimatum, 12--14B tier, Qwen3 14B, refine-P1 condition; run \texttt{1779170121551}, turn 0}
 \speaker{Initial draft} \elide I will propose giving them 25 Dollars to ensure they have an incentive to accept. This way, I keep 75 Dollars for myself \elide
 
 \speaker{Self-critique} \elide Payoff alignment: \elide Suggestion: reduce the amount given to Player BLUE to 20 Dollars. \elide Opponent plausibility: Player BLUE is likely to accept any positive offer, especially since they start with no resources. \elide
 
 \speaker{Final response (after two iterations)} I propose that I give you 10 Dollars. This is fair and gives you an incentive to accept.
 \end{negotiationexcerpt}
+
+
+\subsection{Completion}
+
+% It increases completion rates modestly;
+% Pooled across tiers  (DR versus DD: BuySell 0.889 vs 0.841, Trading 0.830 vs 0.733, Ultimatum 0.904 vs 0.859)
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\linewidth]{figures/results/self_refine/completion_by_tier.png}
+    \caption{Completion rate by game, condition, and tier (\texttt{DD}, \texttt{DR}, \texttt{RD}), with 95\% confidence intervals. Refining a seat raises completion at the small and medium tiers but is noisy at the very-small tier.}
+    \label{fig:refine-completion-tier}
+\end{figure}
+
+\subsection{Cost}
+
+% self-refine generates about six times as much text
+
 \section{Team Negotiation} \label{sec:results-team}
 
 Finally, we ask whether a deliberating team of three models (Section~\ref{sec:team-negotiation}) negotiates better than a single agent. We compare \textit{homogeneous} teams, composed of three identical models, and \textit{heterogeneous} teams, whose members include one model from each family: Gemma, Mistral, and Qwen. We evaluate both compositions from the P1 and P2 seats at the small (12--14B) tier. 
@@ -352,7 +448,7 @@ One of our main objectives was to measure whether team diversity affects perform
 
 One possible pattern in how the team selects its move offers a candidate explanation for why diversity does not help: the consensus concentrates on a single member rather than spreading across the slate. Across the 650 committed heterogeneous moves, the Ministral member's draft wins the Borda count 80.5\% of the time, while Gemma accounts for only 17.4\% of chosen moves and Qwen just 2.2\% (Figure~\ref{fig:hetero-family-consensus}, Appendix~\ref{ap6:team}). This is not just Ministral choosing itself; all three families rank the Ministral draft first most often (Figure~\ref{fig:hetero-voter-pref}). This is especially problematic considering that in the cross-play benchmark, Qwen was the strongest model. 
 
-We considered two possibilities that may have biased this selection: the order in which the moves are presented and the length of the drafts. To rule out both possibilities, we used the homogeneous teams' results, since they hold the model constant and vary only slot and length.
+We considered two possibilities that may have biased this selection: the order in which the moves are presented and the length of the drafts. To rule out both possibilities, we used the homogeneous teams' results, since they hold the model constant and vary only slot and length. 
 
 First, we consider the order of moves. The slate is always presented in the same order (Gemma, Ministral, Qwen), so it could be the case that the middle option had a position bias. When analysing the ranking of slots in homogeneous teams, we do notice there is a position bias, but it favours the first slot (53.9\% against a 33.3\% chance baseline), a slot Ministral never occupies (Figure~\ref{fig:consensus-robustness}, Appendix~\ref{ap6:diversity}).
 
