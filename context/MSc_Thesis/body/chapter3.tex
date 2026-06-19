@@ -2,7 +2,7 @@
 
 \chapter{Methodology} \label{chap:ch3}
 
-This chapter describes how the negotiation capabilities of open-weight large language models were evaluated and how the two inference-time techniques studied in this thesis (Self-Refine and Team Negotiation) were implemented. Section~\ref{sec:na-framework} introduces the NegotiationArena framework of \textcite{bianchi_how_2024}, which is shared across all experiments, together with its three game scenarios (i.e., Price Negotiation, Trading, and Ultimatum) and the metrics used to score them. Section~\ref{sec:models-infra} presents the models under evaluation and the infrastructure used to run them. The remaining sections describe the experimental design for each of the three contributions: benchmarking open-weight models (Section~\ref{sec:benchmarking}), self-refine (Section~\ref{sec:self-refine}), and team-based negotiation (Section~\ref{sec:team-negotiation}). Table~\ref{tab:experiment-design} summarises the full experimental design.
+This chapter describes how the negotiation capabilities of open-weight \acp{LLM} were evaluated and how the two inference-time techniques studied in this thesis (Self-Refine and Team Negotiation) were implemented. Section~\ref{sec:na-framework} introduces the NegotiationArena framework of \textcite{bianchi_how_2024}, which is shared across all experiments, together with its three game scenarios (i.e., Price Negotiation, Trading, and Ultimatum) and the metrics used to score them. Section~\ref{sec:models-infra} presents the models under evaluation and the infrastructure used to run them. The remaining sections describe the experimental design for each of the three contributions: benchmarking open-weight models (Section~\ref{sec:benchmarking}), self-refine (Section~\ref{sec:self-refine}), and team-based negotiation (Section~\ref{sec:team-negotiation}). Table~\ref{tab:experiment-design} summarises the full experimental design.
 
 \begin{table}
 \centering
@@ -15,7 +15,7 @@ This chapter describes how the negotiation capabilities of open-weight large lan
 \midrule
 Benchmark cross-play (Sec.~\ref{sec:cross-play})        & All    & Cross-play     & \texttt{max\_r}\,$\in\{0,3\}$   \\
 Social personas (Sec.~\ref{sec:personas})               & All & Self-play        & default/desperate/cunning; \texttt{max\_r}\,$\in\{0,3\}$ \\
-Self-Refine (Sec.~\ref{sec:self-refine})                & All & Self-play        & $\{$default, refine$\}^2$ (4)         \\
+Self-Refine (Sec.~\ref{sec:self-refine})                & All & Self-play        & default baseline; refine on P1 or P2         \\
 Team negotiation (Sec.~\ref{sec:team-negotiation})      & Small  & Team vs.\ single & \{homo, hetero\} $\times$ \{P1, P2\}  \\
 \bottomrule
 \end{tabular}
@@ -26,8 +26,6 @@ Team negotiation (Sec.~\ref{sec:team-negotiation})      & Small  & Team vs.\ sin
 \textcite{bianchi_how_2024} introduced NegotiationArena, an open-source framework to evaluate and analyze the negotiation abilities of LLM-based agents. The original work focused on proprietary models, some of which have since been deprecated; we keep the games and protocol unchanged, but replace the agents with the open-weight models identified in Table~\ref{tab:experiment-models} and extend it by implementing two inference-time techniques (Sections~\ref{sec:self-refine} and~\ref{sec:team-negotiation}). 
 
 \subsection{Games} \label{sec:games}
-% Explicar: Ultimatum Game; Trading Game; Price Negotiation (BuySell)
-% Possíveis ações; o que significa ganhar em cada um deles?; 
 
 In each scenario, two agents alternate turns for up to a fixed number of rounds, or until one side terminates the game. Before each move, the agent reasons privately step by step; this reasoning is never revealed to the opponent.
 
@@ -38,7 +36,7 @@ In the trading game, each party starts with a set of resources and aims to maxim
 In this variation of the classic Ultimatum Game \cite{doi:10.1126/science.1082976}, one agent receives all of the game's resources but must propose a split that the other accepts in order for either to keep any of it. The second agent can either accept, counter-propose a new split, or reject outright, causing both agents to lose all resources. If no agreement is reached within the maximum number of rounds, both agents lose everything. The winner is the agent with the higher share of the agreed split.
 
 \paragraph{Seller and Buyer Scenario.}
-This is an incomplete-information game in which a seller and a buyer negotiate the price of an item. Each party holds a private valuation: the seller knows its production cost and the buyer its willingness to pay. On each turn, a player may issue a \textsc{Proposal}, \textsc{Accept} the opponent's offer, or \textsc{Reject} it (ending the game with no deal). An agent wins if the agreed price is closer to the opponent's reservation value than to its own.
+This is an incomplete-information game in which a seller and a buyer negotiate the price of an item. Each party holds a private valuation: the seller knows its production cost and the buyer its willingness to pay. On each turn, a player may issue a \textsc{Proposal}, \textsc{Accept} the opponent's offer, or \textsc{Reject} it (ending the game with no deal). An agent wins if the agreed price is closer to the opponent's valuation than to its own.
 
 \paragraph{}
 
@@ -61,8 +59,6 @@ This is an incomplete-information game in which a seller and a buyer negotiate t
 
 \subsection{Evaluation Metrics}
 
-% Usamos Win Rate (percentagem de jogos ganhos) e Average Payoff como usaram no NegotiationArena
-% Para além disso analisamos a completion rate - percentagem de jogos que alcançam um estado final (por vezes não alcançam por um erro de protocolo/formato). Esta métrica é especialmente importante para medir o impacto do nosso mecanismo de retry 
 Negotiation performance is measured using the two metrics adopted in the NegotiationArena (Win Rate and Average Payoff), complemented by a Completion Rate.
 
 \begin{itemize}
@@ -73,58 +69,45 @@ Negotiation performance is measured using the two metrics adopted in the Negotia
 
 \section{Models and Infrastructure} \label{sec:models-infra}
 
-% Selecionámos modelos open-weight em três escalas de parâmetros para analisar o efeito do tamanho do modelo.
-% Agrupámo-los em três grupos (~4–9B, ~12–14B e ~24–27B), já que o número de parâmetros varia bastante entre famílias.
-% Tentámos manter versões consistentes entre grupos, mas tal não foi sempre possível: a família Mistral é representada pelo Ministral 3 e pelo Mistral Small 3.2, e a família Qwen pelo Qwen 3.5 e pelo Qwen3.
-% O Llama 3 foi também testado, mas acabou por ser excluído por apresentar uma taxa de conclusão demasiado baixa para justificar execuções adicionais
-
-% é usada quantização de 8 bits (bitsandbytes) nos modelos Gemma, Qwen e Mistral Small; os modelos Ministral já vêm quantizados em FP8 e são usados nessa precisão. Os modelos Qwen correm com o thinking mode desativado.
-
 Open-weight models vary considerably in scale, so our objective was to group them into comparable parameter tiers in order to measure performance differences across model sizes. We defined three tiers: 4–9B, 12–14B, and 24–27B parameters. 
 
-For each tier, we selected models from three families: Qwen, Mistral, and Gemma. Maintaining a consistent version across all tiers was not possible for Qwen and Mistral, so we included models from both Qwen 3 and Qwen 3.5, and from Ministral and Mistral Small, respectively. We initially considered Llama models as well, but observed very low adherence to the required output format with this family of models. Given the additional computational overhead this would entail, we excluded them from the benchmark. The selected models are listed in Table~\ref{tab:experiment-models}.
+For each tier, we selected models from three families: Qwen (with thinking mode disabled), Mistral, and Gemma. Maintaining a consistent version across all tiers was not possible for Qwen and Mistral, so we included models from both Qwen 3 and Qwen 3.5, and from Ministral and Mistral Small, respectively.  We initially considered Llama models as well, but observed very low adherence to the required output format with this family of models. Given the additional computational overhead this would entail, we excluded them from the benchmark. The selected models are listed in Table~\ref{tab:experiment-models}.
 
 We applied $8$-bit quantization (\texttt{bitsandbytes}\footnote{\url{https://github.com/bitsandbytes-foundation/bitsandbytes}}) to Gemma, Qwen, and Mistral-Small models; the Ministral models are already distributed in native FP8 precision. Generation uses temperature $0.7$ and top-p $0.9$ sampling, with a maximum of $1024$ new tokens per generation call.
 
 \begin{table}
 \centering
 \small
-\caption{Open-weight models used across all experiments. }
+\caption{Open-weight models used across all experiments.}
 \label{tab:experiment-models}
-\begin{tabular}{lllll}
+\begin{tabular}{llll}
 \toprule
-\textbf{Tier} & \textbf{Model} & \textbf{Params} & \textbf{Quantization} & \textbf{Notes} \\
+\textbf{Tier} & \textbf{Model} & \textbf{Parameters} & \textbf{Quantization} \\
 \midrule
 \multirow{3}{*}{Very small}
-  & \href{https://huggingface.co/google/gemma-3-4b-it}{Gemma 3 4B IT}                         & 4B  & 8-bit (bnb)    & --- \\
-  & \href{https://huggingface.co/mistralai/Ministral-3-8B-Instruct-2512}{Ministral 3 8B Instruct} & 8B  & FP8 (native)   & VLM \\
-  & \href{https://huggingface.co/Qwen/Qwen3.5-9B}{Qwen3.5 9B}                                  & 9B  & 8-bit (bnb)    & Thinking off \\
+& \href{https://huggingface.co/google/gemma-3-4b-it}{Gemma 3 4B IT}                         & 4B  & 8-bit (bnb)  \\
+& \href{https://huggingface.co/mistralai/Ministral-3-8B-Instruct-2512}{Ministral 3 8B Instruct} & 8B  & FP8 (native) \\
+& \href{https://huggingface.co/Qwen/Qwen3.5-9B}{Qwen3.5 9B}                                  & 9B  & 8-bit (bnb)  \\
 \midrule
 \multirow{3}{*}{Small}
-  & \href{https://huggingface.co/google/gemma-3-12b-it}{Gemma 3 12B IT}                        & 12B & 8-bit (bnb)    & --- \\
-  & \href{https://huggingface.co/mistralai/Ministral-3-14B-Instruct-2512}{Ministral 3 14B Instruct} & 14B & FP8 (native)   & VLM \\
-  & \href{https://huggingface.co/Qwen/Qwen3-14B}{Qwen3 14B}                                    & 14B & 8-bit (bnb)    & Thinking off \\
+& \href{https://huggingface.co/google/gemma-3-12b-it}{Gemma 3 12B IT}                        & 12B & 8-bit (bnb)  \\
+& \href{https://huggingface.co/mistralai/Ministral-3-14B-Instruct-2512}{Ministral 3 14B Instruct} & 14B & FP8 (native) \\
+& \href{https://huggingface.co/Qwen/Qwen3-14B}{Qwen3 14B}                                    & 14B & 8-bit (bnb)  \\
 \midrule
 \multirow{3}{*}{Medium}
-  & \href{https://huggingface.co/google/gemma-3-27b-it}{Gemma 3 27B IT}                        & 27B & 8-bit (bnb)    & --- \\
-  & \href{https://huggingface.co/mistralai/Mistral-Small-3.2-24B-Instruct-2506}{Mistral-Small 3.2 24B} & 24B & 8-bit (bnb)    & VLM \\
-  & \href{https://huggingface.co/Qwen/Qwen3.5-27B}{Qwen3.5 27B}                                & 27B & 8-bit (bnb)    & Thinking off \\
+& \href{https://huggingface.co/google/gemma-3-27b-it}{Gemma 3 27B IT}                        & 27B & 8-bit (bnb)  \\
+& \href{https://huggingface.co/mistralai/Mistral-Small-3.2-24B-Instruct-2506}{Mistral-Small 3.2 24B} & 24B & 8-bit (bnb)  \\
+& \href{https://huggingface.co/Qwen/Qwen3.5-27B}{Qwen3.5 27B}                                & 27B & 8-bit (bnb)  \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-% Tendo em conta o custo computacional desta tese, procuramos diversificar as possibilidades de onde corremos o código. Para modelos mais pequenos utilizamos o kaggle  (NVIDIA Tesla T4), para as outras categorias usamos o servidor do MIA (NVIDIA L40S) e o Deucalion (Nvidia A100) https://rnca.fccn.pt/en/deucalion/
-% Fizemos um código agnóstico quanto ao servidor onde corremos os jogos
-% Falar do huggingface agent e de como o nosso código tornou possível facilmente correr em qualquer servidor
 
-We implemented a common agent built on the HuggingFace \texttt{transformers} library\footnote{\url{https://huggingface.co/docs/transformers/en/index}}, abstracting model loading, quantization, and chat-template formatting behind a single interface. This design kept the experiments agnostic to the underlying model family and execution environment, allowing the same code to run unchanged across all three platforms.
+We implemented a base agent built around the HuggingFace \texttt{transformers} library\footnote{\url{https://huggingface.co/docs/transformers/en/index}}, abstracting model loading, quantization, and chat-template formatting behind a single interface. This design kept the experiments agnostic to the underlying model family and execution environment, allowing the same code to run unchanged across all three platforms.
 
 Runs were distributed across three environments: Kaggle (2$\times$ NVIDIA T4), the MIA server (NVIDIA L40S), and the Deucalion HPC cluster (NVIDIA A100) \footnote{\url{https://rnca.fccn.pt/en/deucalion/}}.
 
 \section{Benchmarking Open-Weight LLMs} \label{sec:benchmarking}
-% Procuramos reproducir os resultados do NegotiationArena; Numa primeira fase fizemos cross play dos modelos dentro de uma categoria uns contra os outros; Numa segunda fase medimos o impacto de personas (cunning, desperate) na winrate/payoff em self-play;
-
-% No início reparamos que os modelos open-weights, especialmente os mais pequenos (~4B) tinham uma completion rate baixa (não chegavam ao final de muitos jogos devido a problemas de formato ou de não seguirem o protocolo corretamente); Procuramos perceber se dando aos modelos uma mensagem de erro e a oportunidade de se auto corrigirem funcionaria; fizemos uma ablanation a de um baseline (max retries 0) com (max retries 3)
 
 The first contribution follows the experimental framework of NegotiationArena \cite{bianchi_how_2024}, evaluating open-weight models in place of the proprietary models of the original study. Our goal is to establish a baseline of how well current open-weight models negotiate across the three games and parameter tiers. Additionally, following \textcite{bianchi_how_2024}, we examine whether assigning a social persona affects negotiation outcomes.
 
@@ -139,7 +122,7 @@ Following \textcite{bianchi_how_2024}, we analyse whether assigning a social per
 \begin{table}
 \centering
 \small
-\caption{Persona prompts appended to Player~2's system message in the persona experiments.}
+\caption{Persona prompts appended to Player~2's system message in the persona experiments \cite{bianchi_how_2024}.}
 \label{tab:persona-prompts}
 \begin{tabular}{llp{8.5cm}}
 \toprule
@@ -162,12 +145,12 @@ Following \textcite{bianchi_how_2024}, we analyse whether assigning a social per
 
 \subsection{Self-Correction} \label{sec:retry-ablation} 
 
-A practical obstacle with smaller open-weight models was that they frequently produced responses violating the required tag format, which could not be parsed into a valid move, thereby ending the game prematurely. To address this, we test whether giving a model the opportunity to correct its formatting works. When a response fails to parse, the agent receives an error message containing the invalid response and the corresponding parser error, and is asked to resubmit its move in the correct format; this repeats up to \texttt{max\_retries} times, after which the game ends unparsed and is counted as incomplete. Figure~\ref{fig:retry_loop} illustrates this loop. We compare the baseline (\texttt{max\_retries}\,$=0$) against \texttt{max\_retries}\,$=3$ across both experiments.
+A practical obstacle with smaller open-weight models was that they frequently produced responses violating the required tag format, which could not be parsed into a valid move, thereby ending the game prematurely. To address this, we assess whether a simple error detection followed by a retry mechanism could improve the completion rate. When a response fails to parse, the agent receives an error message containing the invalid response and the corresponding parser error, and is asked to resubmit its move in the correct format; this repeats up to \texttt{max\_retries} times, after which the game ends unparsed and is counted as incomplete. Figure~\ref{fig:retry_loop} illustrates this loop. We compare the baseline (\texttt{max\_retries}\,$=0$) against \texttt{max\_retries}\,$=3$ across both experiments.
 
 \begin{figure}
     \centering
     \includegraphics[width=0.8\linewidth]{figures/methodology/SelfCorrection___Figure_page.jpg}
-    \caption{The parse-error self-correction loop applied each turn. A move is committed only once it parses into valid tags; otherwise, the agent is fed the parser error and re-generates, up to \texttt{max\_retries} times, before the game is abandoned as incomplete. Unlike the Self-Refine loop of Figure~\ref{fig:self_refine_loop}, this loop is involuntary (triggered only when a parsing failure occurs) and corrects \emph{format} rather than the quality of the move.}
+    \caption{The self-correction loop. This approach is applied in each turn.A move is committed only once it parses into the expected tag format; otherwise, the agent is fed the parser error and asked to re-generate the response, up to \texttt{max\_retries} times, before the game is considered as incomplete. Unlike the Self-Refine loop of Figure~\ref{fig:self_refine_loop}, this loop is involuntary (triggered only when a parsing failure occurs) and corrects \emph{format} rather than the quality of the move.}
     \label{fig:retry_loop}
 \end{figure}
 
@@ -204,7 +187,7 @@ Unlike the previous experiments, each move requires five model calls: one initia
 
 \section{Team Negotiation} \label{sec:team-negotiation}
 
-The final contribution replaces a single negotiation party with a \textit{team} of \textit{N} models that debate internally before emitting one move. Earlier (pre-LLM) research in automated multi-agent systems has shown that team-based negotiation strategies generally outperform those of single agents \cite{S_nchez_Anguix_2013}. In parallel, recent multi-agent work shows that letting several language models propose, critique and vote on a shared answer can raise quality above that of any single member, whether through round-table consensus \cite{chen2024reconcileroundtableconferenceimproves} or debate \cite{du2023improvingfactualityreasoninglanguage}. We bring these ideas together and ask whether a deliberating team of LLMs negotiates better than a single agent. 
+The final contribution replaces a single negotiation party with a \textit{team} of \textit{N} models that debate internally before emitting one move. Earlier (pre-\acs{LLM}) research in automated multi-agent systems has shown that team-based negotiation strategies generally outperform those of single agents \cite{S_nchez_Anguix_2013}. In parallel, recent multi-agent work shows that letting several language models propose, critique and vote on a shared answer can raise quality above that of any single member, whether through round-table consensus \cite{chen2024reconcileroundtableconferenceimproves} or debate \cite{du2023improvingfactualityreasoninglanguage}. We bring these ideas together and ask whether a deliberating team of LLMs negotiates better than a single agent. 
 
 \begin{figure}
     \centering
