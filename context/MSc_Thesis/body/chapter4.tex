@@ -1,4 +1,4 @@
-\chapter{Results and Discussion}
+\chapter{Results and Discussion} \label{chap:results}
 
 In this chapter, we benchmark the selected models on NegotiationArena (Section~\ref{sec:results-benchmark}), comparing families, tiers, and roles, and relating the observed patterns to those reported by \textcite{bianchi_how_2024}. We then investigate the effect of social personas (Section~\ref{sec:results-personas}) and discuss the impact of the proposed inference-time techniques: self-refine (Section~\ref{sec:results-self-refine}) and team-based negotiation (Section~\ref{sec:results-team}).
  
@@ -6,9 +6,9 @@ In this chapter, we benchmark the selected models on NegotiationArena (Section~\
 
 \subsection{Completion and Parse-Error Self-Correction}
 
-% WHY DO GAMES FAIL? WHO FAILS THE MOST?
+% WHY DO GAMES FAIL? WHO FAILS THE MOST
  
-Every game depends on the model's ability to follow the protocol and output the correct XML tags. A single missing tag can cause a game to fail prematurely, which is a problem for small open-weight models. Without self-correction, more than a quarter of BuySell games and nearly a fifth of Trading games end prematurely at the very-small tier (Figure~\ref{fig:parse-completion-retry-bars}, Appendix~\ref{ap3:additional-results}).
+Every game depends on the model's ability to follow the protocol and output the correct XML tags. A single missing tag can cause a game to fail prematurely, which we found to be a problem when employing small open-weight models. Without self-correction, more than a quarter of BuySell games and nearly a fifth of Trading games end prematurely at the very-small tier (Figure~\ref{fig:parse-completion-retry-bars}, Appendix~\ref{ap3:additional-results}).
 
 Table~\ref{tab:cross-play-completion} shows that completion without retries does not scale uniformly with model size. The small tier is the most reliable, with at least 95\% completion in all three games, while the medium tier falls to 67.8\% in Trading and 86.7\% in the Ultimatum Game.
 
@@ -49,7 +49,7 @@ Failures are also unevenly distributed across models (Figure~\ref{fig:parse-erro
 \end{figure}
 
 % DOES OUR RETRY LOOP WORK? IF SO DOES IT CHANGE RESULTS?
-The proposed self-correction loop (Section~\ref{sec:retry-ablation}) corrects most malformed moves. Of the 10\% of moves that triggered a self-correction loop, 75\% were fixed on the first retry and 93\% within the three-retry budget (Figure~\ref{fig:retried-moves-resolution}). Only 28 games still failed to complete, almost all of them (26 of 28) caused by \texttt{Gemma-3-4B-it}. Qwen triggered most of the retries (284 of 414) but almost always recovered. Excerpt~\ref{ex:gemma-trade} shows an example where Gemma-3 27B successfully recovers from a malformed move.
+The proposed self-correction loop (Section~\ref{sec:retry-ablation}) corrects most malformed moves. Of the 9.7\% of moves that triggered a self-correction loop, 75\% were fixed on the first retry and 93\% within the three-retry budget (Figure~\ref{fig:retried-moves-resolution}). Only 28 games still failed to complete, almost all of them (26 of 28) caused by \texttt{Gemma-3-4B-it}. Qwen triggered most of the retries (284 of 414) but almost always recovered. Excerpt~\ref{ex:gemma-trade} shows an example where Gemma-3 27B successfully recovers from a malformed move.
 
 \begin{figure}
     \centering
@@ -137,17 +137,17 @@ The same asymmetries appear with open-weight models. Figure~\ref{fig:cross-play-
 
 \subsection{Game-Specific Analysis}
 
-The previous subsections averaged over three games with very different structures. Trading and BuySell both favour the second player, whereas the Ultimatum Game is dominated by the first; whereas Trading is zero-sum, BuySell is positive-sum. This subsection analyses the games one at a time. The per-pair win and payoff matrices for each game are provided in Appendix~\ref{ap3:additional-results} (Figures~\ref{fig:pairwise-trading} to \ref{fig:pairwise-buysell}).
+The previous subsections averaged over three games with very different structures. Trading and BuySell both favour the second player, whereas the Ultimatum Game is dominated by the first; whereas Trading is zero-sum, BuySell is positive-sum. This subsection provides a detailed analysis of each game, taking into account its specificities. The win rate and payoff matrices for each game are provided in Appendix~\ref{ap3:additional-results} (Figures~\ref{fig:pairwise-trading} to \ref{fig:pairwise-buysell}).
 
 \paragraph{Trading.}
 
 Since both resources (X and Y) have the same value and each player starts with 30 units in total (25 of one resource, 5 of the other), every deal is zero-sum: a gain by one party is a loss of the same magnitude to the other. 
 
-Figure~\ref{fig:pairwise-trading} shows that \texttt{Qwen-3.5-27B} is the strongest Trading model in the 24-27B tier, and the only one to win from both seats. As player~2 it wins every matchup; as player~1 it beats \texttt{Gemma-3-27B-it} but splits evenly with \texttt{Mistral-Small-3.2-24B}. Gemma's weakness in the Trading game is also evident in its being the only model family with a negative mean Trading payoff in every tier (Table~\ref{tab:cross-play-family-summary}).
+Figure~\ref{fig:pairwise-trading} shows that \texttt{Qwen-3.5-27B} is the strongest Trading model in the 24-27B tier, and the only one to win from both seats. As player~2 it wins every matchup; as player~1 it beats \texttt{Gemma-3-27B-it} but splits evenly with \texttt{Mistral-Small-3.2-24B}. Gemma's weakness in the Trading game is also evident in its being the only model family with a negative mean Trading payoff across all tiers (Table~\ref{tab:cross-play-family-summary}).
 
 \paragraph{Multi-Turn Ultimatum.}
 
-Section~\ref{sec:role-and-turn} showed that in Ultimatum the role matters more than in any other game, with the proposer winning 85--97\% of decisive games. Figure~\ref{fig:ultimatum-opening-offer} shows that proposers usually open well below an even split, with families diverging in their aggressiveness. Mistral is the most generous proposer, particularly at the very small and medium tiers, where it offers \$40.9 and \$45.8, respectively, and keeps roughly half of the pot. Qwen and Gemma are far more aggressive (\$7.7 for very-small Qwen and \$8.8 for small Gemma). In our case, aggression pays. At the medium tier, for example, Gemma offers \$22.1 on average and keeps \$73.9, while Mistral offers \$45.8 and only keeps \$49.9.
+Section~\ref{sec:role-and-turn} showed that, in the Ultimatum game, the player's role has a clear impact on the player's payoffs (with the proposer winning 85--97\% of decisive games), being clearly more expressive than in any other game. Figure~\ref{fig:ultimatum-opening-offer} shows that proposers usually open well below an even split, with families diverging in their aggressiveness. Mistral is the most generous proposer, particularly at the very small and medium tiers, where it offers \$40.9 and \$45.8, respectively, and keeps roughly half of the pot. Qwen and Gemma are far more aggressive (\$7.7 for very-small Qwen and \$8.8 for small Gemma).In this case, being more aggressive results in higher payoffs. At the medium tier, for example, Gemma offers \$22.1 on average and keeps \$73.9, while Mistral offers \$45.8 and only keeps \$49.9.
 
 \begin{figure}
     \centering
