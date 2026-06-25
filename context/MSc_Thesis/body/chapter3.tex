@@ -40,8 +40,8 @@ This is an incomplete-information game in which a seller and a buyer negotiate t
 
 \paragraph{}
 
- At every turn, an agent must express its move using a fixed set of structured, XML-like tags: a private \texttt{<reason>} block, which is never shown to the opponent,followed by game-specific tags such as \texttt{<player answer>} and \texttt{<newly proposed trade>} in the Trading and Buy-Sell games or \texttt{<move>} in the Ultimatum Game. These tags are parsed at runtime to extract the move, so a missing or malformed tag leaves the response unparseable and can end the game prematurely. The full system prompts and tag specifications for each game are available in Appendix~\ref{ap2:na-prompts}. The default parameters used are summarized in Table~\ref{tab:game-setup}.
-
+ At every turn, an agent must express its move using a fixed set of structured, XML-like tags: a private \texttt{<reason>} block, which is never shown to the opponent, followed by game-specific tags such as \texttt{<player answer>} and \texttt{<newly proposed trade>} in the Trading and Buy-Sell games or \texttt{<move>} in the Ultimatum Game. These tags are parsed at runtime to extract the move, so a missing or malformed tag leaves the response unparseable, which can end the game prematurely. The full system prompts and tag specifications for each game are available in Appendix~\ref{ap2:na-prompts}. The default parameters used are summarized in Table~\ref{tab:game-setup}.
+ 
 \begin{table}
     \centering
     \caption{Default setup of each negotiation game.}
@@ -57,7 +57,7 @@ This is an incomplete-information game in which a seller and a buyer negotiate t
     \end{tabular}
 \end{table}
 
-\subsection{Evaluation Metrics}
+\subsection{Evaluation Metrics}\label{subsec:eval-metrics}
 
 Negotiation performance is measured using the two metrics adopted in the NegotiationArena (Win Rate and Average Payoff), complemented by a Completion Rate.
 
@@ -145,7 +145,7 @@ Following \textcite{bianchi_how_2024}, we analyse whether assigning a social per
 
 \subsection{Self-Correction} \label{sec:retry-ablation} 
 
-A practical obstacle with smaller open-weight models was that they frequently produced responses violating the required tag format, which could not be parsed into a valid move, thereby ending the game prematurely. To address this, we assess whether a simple error detection followed by a retry mechanism could improve the completion rate. When a response fails to parse, the agent receives an error message containing the invalid response and the corresponding parser error, and is asked to resubmit its move in the correct format; this repeats up to \texttt{max\_retries} times, after which the game ends unparsed and is counted as incomplete. Figure~\ref{fig:retry_loop} illustrates this loop. We compare the baseline (\texttt{max\_retries}\,$=0$) against \texttt{max\_retries}\,$=3$ across both experiments.
+A practical obstacle with smaller open-weight models was that they frequently produced responses violating the required tag format, which could not be parsed into a valid move, thereby ending the game prematurely. To address this, we assess whether a simple error detection followed by a retry mechanism could improve the completion rate. When a response fails to parse, the agent receives an error message containing the invalid response and the corresponding parser error, and is asked to resubmit its move in the correct format; this repeats up to \texttt{max\_retries} times, after which the game ends unparsed and is counted as incomplete. Figure~\ref{fig:retry_loop} illustrates this loop. We compare the baseline (\texttt{max\_retries}\,$=0$) against \texttt{max\_retries}\,$=3$ across the model cross-play and social personas experiments.
 
 \begin{figure}
     \centering
@@ -181,7 +181,7 @@ Whenever an agent is asked to choose a move, it first produces an initial draft 
 
 A second \textit{refine} prompt then asks the model to rewrite the response, incorporating the critiques. The critique and intermediate drafts are produced on a scratch copy of the conversation; once refinement ends, this scratch copy is discarded, and only the final response is appended to the shared game history.
 
-We evaluate the four combinations obtained by assigning each party either the default or the Self-Refine strategy: both default, both Self-Refine, and the two mixed conditions. As in the social-persona experiment (Section~\ref{sec:personas}), every condition is run in self-play; each condition is played for 30 games across all three scenarios and model tiers. The feedback and refinement prompts are given in Appendix~\ref{ap1:sr-prompts}.
+We evaluate three conditions. The first is a baseline in which both parties use the default strategy, while the other two apply Self-Refine either to the first or the second party. As in the social-persona experiment (Section~\ref{sec:personas}), every condition is run in self-play; each condition is played for 30 games across all three scenarios and model tiers. The feedback and refinement prompts are given in Appendix~\ref{ap1:sr-prompts}.
 
 Unlike the previous experiments, each move requires five model calls: one initial draft plus, for each of the two iterations, one feedback and one rewrite call (Table~\ref{tab:inference-cost}). Whether this increase in inference cost yields a measurable improvement in negotiation performance is one of the main questions addressed in the results chapter.
 

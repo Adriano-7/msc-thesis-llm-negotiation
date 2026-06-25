@@ -17,11 +17,11 @@ Failures are also unevenly distributed across models (Figure~\ref{fig:parse-erro
 \begin{table}
 \centering
 \small
-\caption{Game completion rate in the benchmark cross-play experiments. Each cell pools the ordered cross-play pairings for a game and parameter tier.}
+\caption{Game completion rate in the benchmark cross-play experiments, by game and parameter tier. Each cell pools all six ordered cross-play pairings of the three model families in that tier (both orderings of each pair, self-play excluded), with 30 games per pairing, for 180 games per cell. \textbf{No retries} is the baseline (\texttt{max\_retries}\,$=0$), in which a move that fails to parse ends the game immediately, counted as incomplete; \textbf{Self-correction} (\texttt{max\_retries}\,$=3$) instead lets the agent resubmit a malformed move up to three times before the game is counted as incomplete (the self-correction loop, Section~\ref{sec:retry-ablation}).}
 \label{tab:cross-play-completion}
 \begin{tabular}{llcc}
 \toprule
-\textbf{Game} & \textbf{Tier} & \textbf{No retries} & \textbf{Retry-3} \\
+\textbf{Game} & \textbf{Tier} & \textbf{No retries} & \textbf{Self-correction} \\
 \midrule
 \multirow{3}{*}{Trading}
   & 4--9B   & 0.806 & 0.906 \\
@@ -54,11 +54,11 @@ The proposed self-correction loop (Section~\ref{sec:retry-ablation}) corrects mo
 \begin{figure}
     \centering
     \includegraphics[width=0.75\linewidth]{figures/results/cross_play/retried_moves_resolution.png}
-    \caption{Retry-3 recovery breakdown. Most corrected moves parse after one retry.}
+    \caption{Self-correction loop recovery breakdown. Most corrected moves parse after one retry.}
     \label{fig:retried-moves-resolution}
 \end{figure}
 
-\begin{negotiationexcerpt}[label=ex:gemma-trade]{Recovering from a placeholder left in the trade}{Trading, 24--27B tier, Gemma~3 27B (retry-3 condition); run \texttt{1775874973711}}
+\begin{negotiationexcerpt}[label=ex:gemma-trade]{Recovering from a placeholder left in the trade}{Trading, 24--27B tier, Gemma~3 27B (self-correction-loop condition); run \texttt{1775874973711}}
 \speaker{Gemma 3 27B (as Player RED)}
 \elide \texttt{<player answer> NONE </player answer>}\\
 \texttt{<newly proposed trade> Player RED Gives X: 10, Y: 2 | Player BLUE Gives X: amount, Y: amount </newly proposed trade>}
@@ -73,20 +73,21 @@ Your previous response could not be parsed. \elide
 \texttt{<newly proposed trade> Player RED Gives X: 10, Y: 2 | Player BLUE Gives X: 5, Y: 10 </newly proposed trade>}
 \end{negotiationexcerpt}
 
-The retry loop does not materially change the rankings. Comparing win rates under ``no retries'' and ``retry-3'' gives a Spearman correlation $\rho$ of $0.92$, and the pooled win rate by family and tier preserves the relative ordering of families (Figure~\ref{fig:winrate-retry-ablation}, Appendix~\ref{ap3:additional-results}). Because the retry loop preserves the overall ranking while recovering lost games, the rest of the section focuses on the retry-3 results.
+The self-correction loop does not materially change the rankings. Comparing win rates with and without it gives a Spearman correlation $\rho$ of $0.92$, and the pooled win rate by family and tier (both seats combined) preserves the relative ordering of families (Figure~\ref{fig:winrate-retry-ablation}, Appendix~\ref{ap3:additional-results}). Because the self-correction loop preserves the overall ranking while recovering lost games, the benchmark and persona experiments reported in the remainder of this chapter always employ it. The two inference-time interventions, Self-Refine (Section~\ref{sec:results-self-refine}) and Team negotiation (Section~\ref{sec:results-team}), are instead run without it (\texttt{max\_retries}\,$=0$), so that their own effect on completion can be measured directly.
 
 \subsection{Model-Family Performance}
 
 % WHICH FAMILY NEGOTIATES BEST?
 
-We now ask a central question: which model family is the best negotiator? Throughout this subsection, win rate and payoff are calculated over payoff-valid completed games (excluding draws) with both seats pooled.
+We now ask a central question: which model family is the best negotiator? To obtain a single ranking of the families, throughout this subsection we pool each family's games in both seats (P1 and P2) and report one win rate and one mean payoff per family; the per-seat view is taken up separately in Section~\ref{sec:role-and-turn}. Both metrics follow the definitions given in Section~\ref{subsec:eval-metrics}.
+
 
 As Table~\ref{tab:cross-play-family-summary} shows, the answer is consistent. In every single tier, the pooled win rate across the three games shows that Qwen is the best performer, winning 63.0\%, 63.4\% and 66.8\% of games, followed by Gemma (44.5--45.3\%) and Mistral (38.0--42.8\%). The table summarises negotiation performance by family and tier, pairing the pooled win rate with the mean payoff in each game's native units (resource delta in Trading, dollars kept in Ultimatum and profit in BuySell).
 
 \begin{table}
 \centering
 \small
-\caption{Cross-play summary by family and tier under retry-3. Win rate is computed over completed, payoff-valid decisive games; payoff is reported in each game's native units.}
+\caption{Cross-play summary by family and tier under the self-correction loop. Win rate is computed over completed, payoff-valid decisive games; payoff is reported in each game's native units.}
 \label{tab:cross-play-family-summary}
 \begin{tabular}{llcccc}
 \toprule
@@ -117,7 +118,7 @@ The pooled ranking, however, hides the fact that Qwen is not the strongest famil
 \begin{figure}
     \centering
     \includegraphics[width=0.72\linewidth]{figures/results/cross_play/winrate_game_family_tier.png}
-    \caption{Win rate by game, family, and tier under retry-3. Qwen dominates Trading and performs strongly in BuySell, while Gemma is strongest in Ultimatum.}
+    \caption{Win rate by game, family, and tier under the self-correction loop. Qwen dominates Trading and performs strongly in BuySell, while Gemma is strongest in Ultimatum.}
     \label{fig:cross-play-game-family-winrate}
 \end{figure}
 
@@ -131,7 +132,7 @@ The same asymmetries are observed with open-weight models. Figure~\ref{fig:cross
 \begin{figure}
     \centering
     \includegraphics[width=0.75\linewidth]{figures/results/cross_play/role_effect_family_seat.png}
-    \caption{Win rate by family and seat under retry-3. Ultimatum favours the first mover, while Trading and BuySell favour the second mover.}
+    \caption{Win rate by family and seat under the self-correction loop. Ultimatum favours the first mover, while Trading and BuySell favour the second mover.}
     \label{fig:cross-play-role-effect}
 \end{figure}
 
@@ -156,7 +157,7 @@ Section~\ref{sec:role-and-turn} showed that, in the Ultimatum game, the player's
     \label{fig:ultimatum-opening-offer}
 \end{figure}
 
-\textcite{bianchi_how_2024} noticed irrational behaviour in some proprietary models playing this variation of the Ultimatum Game in which players are allowed to counter the proposals they receive. Yet in some circumstances, some models reject offers outright without a counter-offer, which is a value-destroying move for both. We also noticed this irrational behaviour in open-weight models. These rejections are concentrated in the very-small tier (Figure~\ref{fig:ultimatum-rejection-rate}), where \texttt{Gemma-3-4B} rejects 32.2\% of the splits (Mistral 11.9\%, Qwen 0\%). Rejected games do start from more aggressive openings (a mean offer of \$18.9, compared to \$24.1 in accepted games), but rejection remains value-destroying in a situation where a counter-proposal would benefit both sides.
+\textcite{bianchi_how_2024} noticed irrational behaviour in some proprietary models playing this variation of the Ultimatum Game in which players are allowed to counter the proposals they receive. Yet in some circumstances, some models reject offers outright without a counter-offer, which ends the negotiation with nothing for either side. We also noticed this irrational behaviour in open-weight models. These rejections are concentrated in the very-small tier (Figure~\ref{fig:ultimatum-rejection-rate}), where \texttt{Gemma-3-4B} rejects 32.2\% of the splits (Mistral 11.9\%, Qwen 0\%). Rejected games do start from more aggressive openings (a mean offer of \$18.9, compared to \$24.1 in accepted games), but rejecting outright still forgoes a counter-proposal that would have benefited both sides.
 
 \begin{figure}
     \centering
@@ -172,7 +173,7 @@ In BuySell, any price between the seller's cost of production (40) and the buyer
 \begin{figure}
     \centering
     \includegraphics[width=0.5\linewidth]{figures/results/cross_play/buysell_surplus_split.png}
-    \caption{Mean split of the 20-ZUP BuySell surplus between the seller (Player~1) and the buyer (Player~2), by parameter tier and pooled across all deals, under retry-3. The buyer captures the larger share, keeping 14.3 ZUP on average against the seller's 5.7.}
+    \caption{Mean split of the 20-ZUP BuySell surplus between the seller (Player~1) and the buyer (Player~2), by parameter tier and pooled across all deals, under the self-correction loop. The buyer captures the larger share, keeping 14.3 ZUP on average against the seller's 5.7.}
     \label{fig:buysell-price-surplus}
 \end{figure}
 
@@ -185,7 +186,7 @@ In BuySell, any price between the seller's cost of production (40) and the buyer
     \label{fig:buysell-seller-anchoring}
 \end{figure}
 
-Finally, we also observe some irrational pricing. Across games, sellers open below their production cost in 16.2\% of games, and 12.9\% of completed deals close below cost. \texttt{Gemma-3-12B-it} is particularly irrational, opening below production cost in 76.7\% of games. Qwen, on the other hand, almost never makes this error.
+Finally, we also observe a form of irrational pricing that \textcite{bianchi_how_2024} did not report for the closed-source models: open-weight sellers selling at a loss. Across games, sellers open below their production cost in 16.2\% of games, and 12.9\% of completed deals close below cost. \texttt{Gemma-3-12B-it} is particularly irrational, opening below production cost in 76.7\% of games. Qwen, on the other hand, almost never makes this error. The closest behaviour they describe is GPT-3.5 misreading its goal and pricing at exactly its production cost, that is, at zero profit, in 20\% of its Sell/Buy games; the open-weight sellers we study go further, conceding outright losses rather than merely forgoing profit.
 
 \section{Social Personas} \label{sec:results-personas}
 
@@ -196,7 +197,7 @@ The GPT-4 pattern does not transfer completely. The effect is game-specific (Fig
 \begin{figure}
     \centering
     \includegraphics[width=0.8\linewidth]{figures/results/personas/winrate_by_persona_game.png}
-    \caption{P2 win rate by persona and game under retry-3, over decided games (ties and
+    \caption{P2 win rate by persona and game under the self-correction loop, over decided games (ties and
     no-deals excluded) with Wilson 95\% \acp{CI}; the count below each bar is
     its decided-game denominator. Cunning gives the largest gain in Ultimatum and desperate
     the largest in BuySell, but neither helps in Trading.}
@@ -208,7 +209,7 @@ Win rate alone is misleading here: it excludes ties, including the no-deals in w
 \begin{figure}
     \centering
     \includegraphics[width=0.8\linewidth]{figures/results/personas/nodeal_by_persona_game.png}
-    \caption{No-deal rate by persona and game among completed games (retry-3), with 95\%
+    \caption{No-deal rate by persona and game among completed games (the self-correction loop), with 95\%
     \acp{CI}. A no-deal scores zero for both parties. Cunning raises the no-deal
     rate in every game and sends most Ultimatum games to a destroyed pot.}
     \label{fig:persona-nodeal-game}
@@ -219,15 +220,15 @@ The analysis of Figure~\ref{fig:persona-offer-extremity} helps explain why these
 \begin{figure}
     \centering
     \includegraphics[width=0.78\linewidth]{figures/results/personas/ultimatum_offer_extremity.png}
-    \caption{Ultimatum split proposals by persona (retry-3): filled boxes are the share P2
+    \caption{Ultimatum split proposals by persona (the self-correction loop): filled boxes are the share P2
     demands when it counter-proposes, open boxes the share P1 offers to P2. Cunning widens
     the gap between what P2 asks and what P1 is willing to concede.}
     \label{fig:persona-offer-extremity}
 \end{figure}
 
-Excerpt~\ref{ex:persona-cunning-two-sided} shows both sides of the high-risk, high-reward trade-off: in one run, the insults lead the default P1 to reject without a counter-proposal, while in another, the same pressure extracts 95\% of a \$100 pot.
+Excerpt~\ref{ex:persona-cunning-two-sided} shows both sides of the high-risk, high-reward trade-off: in one run, the insults lead the default P1 to reject without a counter-proposal, while in another, the same pressure extracts \$95 of a \$100 pot.
 
-\begin{negotiationexcerpt}[label=ex:persona-cunning-two-sided]{Two sides of the cunning persona}{Ultimatum self-play, cunning P2; two retry-3 runs}
+\begin{negotiationexcerpt}[label=ex:persona-cunning-two-sided]{Two sides of the cunning persona}{Ultimatum self-play, cunning P2; two self-correction-loop runs}
 \excerptlog{Downside: insults trigger rejection}{Ministral~3 14B; run \texttt{1778974783199}}
 \speaker{P1 (default)} Player RED proposes: Player RED Gives Dollars: 1 | Player BLUE Gives Dollars: 0. Take it or leave it \elide
 
@@ -278,7 +279,7 @@ The size of the persona effect also varies sharply from one model to the next (F
 \begin{figure}
     \centering
     \includegraphics[width=0.85\linewidth]{figures/results/personas/effect_spread_by_model.png}
-    \caption{Per-model persona effect on P2 win rate (retry-3): each point is one model's
+    \caption{Per-model persona effect on P2 win rate (self-correction loop): each point is one model's
     win-rate change from its own default condition, the horizontal bar is the group mean,
     and the number above each group its spread across models. The effect varies widely model
     to model, especially for cunning.}
@@ -292,7 +293,7 @@ change behaviour, sometimes strongly, but these gains are conditional. The main 
 
 We now ask whether the Self-Refine loop introduced in Section~\ref{sec:self-refine} improves negotiation skills. The answer is mixed, and mostly negative: Self-Refine is not a general improvement, nor does it justify the extra cost. Its effect is \textit{asymmetric}: it usually helps when a party starts from a structurally weak position, but tends to penalize a party that is already strong.
 
-For each game and tier, we assign Self-Refine to one player only and compare how that player fares against the same player in games where neither side has a Self-Refine loop. The full per-cell deltas are in Appendix~\ref{ap5:self_refine}. 
+For each game and tier, we assign Self-Refine to one player only and compare how that player fares against the same player in games where neither side has a Self-Refine loop. The full per-cell effects are mapped in Figure~\ref{fig:refine-impact-heatmap}, with additional breakdowns in Appendix~\ref{ap5:self_refine}.
 
 \begin{table}
 \centering
@@ -328,7 +329,7 @@ When the seat using Self-Refine is the structurally disadvantaged one (P1 in Tra
 
 The most positive case is the Trading first mover (P1), the only seat to gain on both metrics at all tiers: its win rate rises by 14.5--19.0 percentage points, with parallel payoff gains of 1.4--2.4. The Ultimatum responder is a weaker case: its win rate improves at every tier ($+4$ to $+8$~pp), but the payoff changes are not statistically significant.
 
-On the opposite side are cases where adding a refinement loop to already strong seats leads to losses in win rate. One example is the Trading second mover (P2), which loses up to 16~pp of win rate; another is the BuySell seller, which loses 20.3~pp of win rate and 3.1~ZUP of surplus. Figure~\ref{fig:refine-impact-heatmap} maps these per-cell effects across all seats.
+On the opposite side are cases where adding a refinement loop to already strong seats leads to losses in win rate. One example is the Trading second mover (P2), which loses up to 16~pp of win rate; another is the BuySell seller, which loses 20.3~pp of win rate and 3.1~ZUP of surplus (Figure~\ref{fig:refine-impact-heatmap}).
 
 \begin{figure}
     \centering
@@ -369,7 +370,7 @@ Because \textit{format} is one of the critique criteria, refinement also pre-emp
 
 \subsection{Cost}
 
-A refined move generates roughly six times as much text as a default one, a median of 4,900 characters against 790. The case for Self-Refine in negotiation is, at least in our implementation, weak. One possible reason is that, unlike the coding and math tasks it was designed for \cite{madaan_self-refine_2023}, a negotiation scenario does not have a verifiable target for the critique to converge on.
+A refined move generates roughly six times as much text as a default one, a median of 4,900 characters against 790. The case for Self-Refine in negotiation is, at least in our implementation, weak. One possible reason is that, unlike the coding and math tasks it was tested on \cite{madaan_self-refine_2023}, a negotiation scenario does not have a verifiable target for the critique to converge on.
 
 \section{Team Negotiation} \label{sec:results-team}
 
