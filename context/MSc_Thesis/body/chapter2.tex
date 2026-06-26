@@ -12,30 +12,32 @@
 
 \section{Language Models} \label{sec:llm-agents}
 
-The origins of language modeling date back to \textcite{6773024}, which modeled natural language as a stochastic process. Building on this, \textcite{bengio_neural_2003} proposed one of the first \acp{NLM} estimating n-gram probabilities using neural networks. Thereafter, \acp{NLM} based on \ac{LSTM} became the standard for many natural language tasks, including machine translation, text generation, and classification \parencite{minaee2025largelanguagemodelssurvey, sutskever2014sequencesequencelearningneural}.
+The origins of language modelling date back to \textcite{6773024}, which modelled natural language as a stochastic process. Building on this, \textcite{bengio_neural_2003} proposed one of the first \acp{NLM} estimating n-gram probabilities using neural networks. Thereafter, \acp{NLM} based on \ac{LSTM} became the standard for many natural language tasks, including machine translation, text generation, and classification \parencite{minaee2025largelanguagemodelssurvey, sutskever2014sequencesequencelearningneural}.
 
-The introduction of the Transformer architecture \parencite{vaswani2023attentionneed} addressed some limitations of \acp{LSTM}, allowing parallelization during training and capturing long-range dependencies through the self-attention mechanism. Applying this architecture, \textcite{Radford2018ImprovingLU} pre-trained a language model on the next-word prediction task and showed that, when followed by task-specific fine-tuning, it achieved state-of-the-art performance on common-sense reasoning, question answering and many other tasks. GPT-2 \parencite{Radford2019LanguageMA} demonstrated that sufficiently large language models can perform downstream tasks such as summarization, translation, and question answering without task-specific fine-tuning.
+The introduction of the Transformer architecture \parencite{vaswani2023attentionneed} addressed some limitations of \acp{LSTM}, allowing parallelisation during training and capturing long-range dependencies through the self-attention mechanism. Applying this architecture, \textcite{Radford2018ImprovingLU} pre-trained a language model on the next-word prediction task and showed that, when followed by task-specific fine-tuning, it achieved state-of-the-art performance on common-sense reasoning, question answering and many other tasks. GPT-2 \parencite{Radford2019LanguageMA} demonstrated that sufficiently large language models can perform downstream tasks such as summarisation, translation, and question answering without task-specific fine-tuning.
 
 The increase in the number of parameters, dataset size, and training compute of language models continued, supported by the power-law relationship detected in \textcite{kaplan2020scalinglawsneurallanguage}, which showed that an increase in these three components led to an improvement in performance. As models grew, so did the computational costs and risks associated with their deployment, which led the majority of frontier labs to keep the model weights proprietary; nevertheless, some have opted for an open-weight release (e.g., LLaMA \cite{grattafiori2024llama3herdmodels}, Mistral \cite{jiang2023mistral7b}, DeepSeek \cite{deepseekai2025deepseekv32pushingfrontieropen}). Table \ref{tab:llm-parameters} compares some of the main families of models.
 
-\begin{table}[htbp]
+Open-weight releases make local deployment possible, but the memory footprint of the larger models remains an obstacle for researchers without access to large compute. Post-training quantisation mitigates this by storing the weights at a lower numerical precision: \textcite{dettmers2022llmint88bitmatrixmultiplication} show that their 8-bit matrix-multiplication scheme (LLM.int8()), released as the open-source \texttt{bitsandbytes}\footnote{\url{https://github.com/bitsandbytes-foundation/bitsandbytes}} library, roughly halves the memory required for inference without a measurable drop in quality. We use this library to quantise several of the open-weight models we use so that they fit within the hardware available for our experiments.
+
+\begin{table}
 \centering
 \small
 \caption{Comparison of different models. For \ac{MoE} models, parameters are denoted as \textit{Total / Active}.}
 \label{tab:llm-parameters}
 \begin{tabular}{llll}
 \toprule
-\textbf{Model} & \textbf{Parameters} & \textbf{License} & \textbf{Notes} \\
+\textbf{Model} & \textbf{Parameters} & \textbf{Licence} & \textbf{Notes} \\
 \midrule
 \multicolumn{4}{l}{\textit{OpenAI}} \\
-GPT-1 & 117M & Proprietary & \cite{Radford2018ImprovingLU, Radford2019LanguageMA} \\
+GPT-1 & 117M & Open-weights & \cite{Radford2018ImprovingLU, Radford2019LanguageMA} \\
 GPT-2 & 117M--1542M (4 variants) & Open-weights & \cite{Radford2019LanguageMA} \\
-GPT-3 & 125M--175B (7 variants) & Proprietary & \cite{brown2020languagemodelsfewshotlearners} \\
+GPT-3 & 125M--175B (8 variants) & Proprietary & \cite{NEURIPS2020_1457c0d6} \\
 GPT-4, GPT-5 & Undisclosed & Proprietary & \cite{openai2024gpt4technicalreport, singh2025openaigpt5card} \\
 GPT-OSS & 117B/5.1B, 21B/3.6B & Open-weights & MoE \cite{openai2025gptoss120bgptoss20bmodel} \\
 \midrule
 \multicolumn{4}{l}{\textit{Google}} \\
-Gemini 1.0--3 & Undisclosed & Proprietary & \cite{geminiteam2025geminifamilyhighlycapable, comanici2025gemini25pushingfrontier} \\
+Gemini 1.0--3 & Undisclosed & Proprietary & \cite{geminiteam2025geminifamilyhighlycapable, comanici2025gemini25pushingfrontier, google2025gemini3} \\
 Gemma & 2B, 7B & Open-weights & \cite{gemmateam2024gemmaopenmodelsbased} \\
 Gemma 2 & 2B, 9B, 27B & Open-weights & \cite{gemmateam2024gemma2improvingopen} \\
 Gemma 3 & 1B, 4B, 12B, 27B & Open-weights & Multimodal \cite{gemmateam2025gemma3technicalreport} \\
@@ -47,7 +49,7 @@ LLaMA 3 & 8B, 70B, 405B & Open-weights & \cite{grattafiori2024llama3herdmodels} 
 LLaMA 4 & 109B/17B, 400B/17B & Open-weights & MoE \cite{meta2025llama4} \\
 \midrule
 \multicolumn{4}{l}{\textit{Anthropic}} \\
-Claude 3, 4.5 & Undisclosed & Proprietary & \cite{TheC3} \\
+Claude 3, 4.5 & Undisclosed & Proprietary & \cite{TheC3, anthropic2025claudesonnet45systemcard, anthropic2025claudeopus45systemcard} \\
 \midrule
 \multicolumn{4}{l}{\textit{DeepSeek}} \\
 DeepSeek-R1 & 671B/37B & Open-weights & MoE \cite{Guo_2025} \\
@@ -55,36 +57,69 @@ DeepSeek-R1 & 671B/37B & Open-weights & MoE \cite{Guo_2025} \\
 \end{tabular}
 \end{table}
 
-\section{Inference-Time Reasoning Techniques} \label{sec:single-agent}
+\section{Inference-Time Techniques} \label{sec:single-agent}
 
-Beyond simple improvements in performance, scaling also brought new capabilities that could not be predicted by extrapolating the performance of smaller models. \textcite{wei2022emergentabilitieslargelanguage} refers to them as \textit{emergent abilities}. Among them are the ability to learn from examples (Few-Shot prompting, \cite{NEURIPS2020_1457c0d6}), to think step-by-step (Chain-of-Thought, \cite{wei_chain--thought_2023}), and to criticize and improve its own outputs (Self-Refine, \cite{madaan_self-refine_2023}).
+Beyond simple improvements in performance, scaling also brought new capabilities that could not be predicted by extrapolating the performance of smaller models. \textcite{wei2022emergentabilitieslargelanguage} refers to them as \textit{emergent abilities}, among them the ability to learn from examples (Few-Shot prompting, \cite{NEURIPS2020_1457c0d6}) and to think step-by-step (Chain-of-Thought, \cite{wei_chain--thought_2023}). 
+
+Applied at inference time through prompting alone, without any weight updates, these techniques avoid the compute cost of fine-tuning, which grows with the model's parameter count. Building on the same prompting paradigm, later work showed that a model can likewise criticise and improve its own outputs (Self-Refine, \cite{madaan_self-refine_2023}). These techniques have been widely adopted for their strong results, and the following subsections detail the ones most relevant to this work.
+
+\subsection{Few-Shot Prompting} \label{sec:few-shot}
+
+\textcite{NEURIPS2020_1457c0d6} showed that a sufficiently large language model can learn a new task from a few input-output examples placed in its prompt, with no gradient updates. They called this \textit{in-context learning} and identified three regimes by the number of demonstrations provided: \textit{zero-shot}, only a natural language description of the task; \textit{one-shot}, a single example; and \textit{few-shot}, several. The number of demonstrations is limited by the context window, and the approach grows more effective with model scale. 
+
+In the few-shot setting, GPT-3 sometimes matched or surpassed the fine-tuned state of the art \parencite{NEURIPS2020_1457c0d6}. 
+
+\begin{table}
+\centering
+\small
+\caption{The same task posed in the zero-, one-, and few-shot regimes. In each case the model receives the demonstrations followed by an incomplete query (\texttt{cheese =>}
+) and is expected to produce the completion; only the number of demonstrations changes. Adapted from \textcite{NEURIPS2020_1457c0d6}.}
+\label{tab:few-shot}
+\begin{tabular}{@{}lp{0.6\linewidth}@{}}
+\toprule
+\textbf{Regime} & \textbf{Prompt} \\
+\midrule
+Zero-shot & \ttfamily Translate English to French: \newline cheese => \\
+\midrule
+One-shot & \ttfamily Translate English to French: \newline sea otter => loutre de mer \newline cheese => \\
+\midrule
+Few-shot & \ttfamily Translate English to French: \newline sea otter => loutre de mer \newline plush giraffe => girafe peluche \newline cheese => \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Chain-of-Thought Reasoning} \label{sec:cot}
 
-Depending on how Chain-of-Thought is implemented, it can be classified as Zero-Shot-CoT \parencite{kojima2023largelanguagemodelszeroshot} if we simply attach an instruction that elicits reasoning (e.g., "Let's think step by step") or Few-Shot-CoT \parencite{wei_chain--thought_2023} if we also accompany it with examples of reasoning traces. 
+Depending on how Chain-of-Thought is implemented, it can be classified as Zero-Shot-CoT \parencite{kojima2023largelanguagemodelszeroshot} if we simply attach an instruction that elicits reasoning (e.g., ``Let's think step by step'') or Few-Shot-CoT \parencite{wei_chain--thought_2023} if we also accompany it with examples of reasoning traces. 
 
 This technique not only improves the interpretability of models, as the reasoning traces provide a window into the decision process, but also improves the reasoning performance because dividing a complex problem into sub-problems reduces the risk of overlooking details \parencite{zhang2023ignitinglanguageintelligencehitchhikers}.
 
-\acp{LRM} that internalize \ac{CoT} through reinforcement learning \parencite{openai2024openaio1card, Guo_2025} have become state-of-the-art, achieving a significant leap in performance, especially in coding and math capabilities. \textcite{shojaee2025illusionthinkingunderstandingstrengths} analyzed the advantages of \acp{LRM} and identified three different performance regimes. For low-complexity problems, standard models often surpass \acp{LRM} while being more token-efficient. For medium-complexity problems, \acp{LRM} demonstrate a leap in performance, with their reasoning effort increasing alongside problem complexity. Nevertheless, beyond a certain complexity threshold, \acp{LRM} collapse, and both model types demonstrate a complete incapacity to solve the problem.
+\acp{LRM} that internalise \ac{CoT} through reinforcement learning \parencite{openai2024openaio1card, Guo_2025} have become state-of-the-art, achieving a significant leap in performance, especially in coding and math capabilities. \textcite{shojaee2025illusionthinkingunderstandingstrengths} analysed the advantages of \acp{LRM} and identified three different performance regimes. For low-complexity problems, standard models often surpass \acp{LRM} while being more token-efficient. For medium-complexity problems, \acp{LRM} demonstrate a leap in performance, with their reasoning effort increasing alongside problem complexity. Nevertheless, beyond a certain complexity threshold, \acp{LRM} collapse, and both model types demonstrate a complete incapacity to solve the problem.
 
 \subsection{Self-Refine} \label{sec:self-refinement}
 
 While solving a problem, humans usually start by creating a draft that they iteratively refine based on their own feedback. This is the inspiration for the Self-Refine technique proposed by \textcite{madaan_self-refine_2023} that breaks down the generation process into three steps: (1) the model generates an initial draft, (2) generates feedback, and (3) based on this feedback, refines the answer. 
 
-\begin{figure}[H]
+\begin{figure}
     \centering
     \includegraphics[width=1\linewidth]{figures/literature_review/self_refine_example.jpg}
     \caption{Example of the Self-Refine process. The model critiques its initial output to generate an improved final response based on self-generated feedback.}
     \label{fig:self-refine}
 \end{figure}
 
-Subsequent work continued this idea of self-refine, applying it to various tasks such as arithmetic reasoning and code generation. Some frameworks provide additional information in the feedback stage, such as the output from a code interpreter \parencite{chen2023teachinglargelanguagemodels}. %As noted in \textcite{kamoi-etal-2024-llms}, there is conflicting evidence regarding the efficacy of LLM self-correction. Their survey concluded that, although self-correction works well when there is external feedback or the models are fine-tuned for self-correction, prior work has demonstrated success only on tasks exceptionally suited to self-correction.
+Subsequent work continued this idea of Self-Refine, applying it to various tasks such as arithmetic reasoning and code generation. Some frameworks provide additional information in the feedback stage, such as the output from a code interpreter \parencite{chen2023teachinglargelanguagemodels}. 
+
+Self-Refine is one instance of \textit{self-correction}, which \textcite{kamoi-etal-2024-llms} define as the use of \acp{LLM} to refine \ac{LLM} responses at inference time through the same three stages of initial response, feedback and refinement. They distinguish \textit{intrinsic} self-correction, in which the model generates its own feedback, from self-correction that draws on external feedback, such as code interpreters, retrieved knowledge, or fine-tuned critics.
+
+The evidence for intrinsic self-correction is mixed. \textcite{kamoi-etal-2024-llms} find that no prior work reliably achieves it on general tasks through in-context learning alone; the reported gains come instead from external feedback, such as executing generated code, or from large-scale fine-tuning. \textcite{huang2024largelanguagemodelsselfcorrect}, for instance, show that prompting a model to revise its own reasoning can leave accuracy unchanged or even lower it. A negotiation move has no external measure of its quality, so Self-Refine here is purely intrinsic.
+
+This thesis applies self-correction in both senses. Self-Refine (Section~\ref{sec:self-refine}) is intrinsic; the parse-error recovery loop (Section~\ref{sec:retry-ablation}) is instead externally grounded: it fires only when a move fails to parse, returning the parser's error to the agent so it can resubmit, much as a code interpreter's output is fed back above. The externally grounded loop has a reliable signal to act on, the intrinsic one does not.
 
 \section{Multi-Agent Systems}
 
-From the Manhattan Project to the Space Program, most major accomplishments in history came not from individuals alone, but from the cooperation and competition of many. This observation serves as inspiration for the study of multi-agent systems, defined in \textcite{wooldridge2009introduction} as systems where agents interact with each other by exchanging messages.
+From the Manhattan Project to the Space Programme, most major accomplishments in history came not from individuals alone, but from the cooperation and competition of many. [TODO: MAS definition]
 
-Multi-Agent Systems (\acs{MAS}) existed long before \acp{LLM} became popular (Figure \ref{fig:mas_evolution}), dating back to the 1970s with distributed problem solving. In the last decades, deep reinforcement learning and \acp{LLM} have significantly expanded \acs{MAS} capabilities \parencite{ORBi-3d2db975-4cd3-46c6-84c3-a0b578b16b12}.
+Multi-Agent Systems (\acs{MAS}) existed long before \acp{LLM} became popular (Figure \ref{fig:mas_evolution}), dating back to the 1970s with distributed problem solving. In recent decades, deep reinforcement learning and \acp{LLM} have significantly expanded \acs{MAS} capabilities \parencite{ORBi-3d2db975-4cd3-46c6-84c3-a0b578b16b12}.
 
 \begin{figure}
     \centering
@@ -93,19 +128,18 @@ Multi-Agent Systems (\acs{MAS}) existed long before \acp{LLM} became popular (Fi
     \label{fig:mas_evolution}
 \end{figure}
 
+An agent is an entity capable of perceiving its environment and taking actions upon it to achieve its goals. \ac{LLM}-based agents adopt an \ac{LLM} as their reasoning core, leveraging its reasoning and planning capabilities to perceive their surroundings, and act within an interactive environment \parencite{Li2024}. \textcite{Li2024} proposed a unified framework for \ac{LLM}-based \acs{MAS}, identifying the following five components:
 
-
-\textcite{Li2024} proposed a framework for \ac{LLM}-based agents, identifying the following five components:
 \begin{itemize}
-    \item Profile: Agent's identity and characteristics (roles, goals, and personalized traits).
+    \item Profile: Agent's identity and characteristics (roles, goals, and personalised traits).
     \item Perception: Agent's perception of the environment to acquire knowledge and experience.
-    \item Self-Action: Agent’s ability to make decisions and execute actions based on its perception and internal state.
-    \item Mutual Interaction: Communication and collaborative coordination among agents;
-    \item Evolution: Agent's reflection of its actions and behaviors to progressively improve its intelligence and experience.
+    \item Self-Action: Agent's ability to make decisions and execute actions based on its perception and internal state.
+    \item Mutual Interaction: Communication and collaborative coordination among agents.
+    \item Evolution: Agent's reflection of its actions and behaviours to progressively improve its intelligence and experience.
 \end{itemize}
 
 \section{Interaction Scenarios}
-According to \textcite{Li2024}, interaction scenarios in LLM-Based Multi-Agent systems can be classified as cooperative, adversarial, or mixed. 
+According to \textcite{Li2024}, interaction scenarios in LLM-based Multi-Agent systems can be classified as cooperative, adversarial, or mixed. 
 
 \subsection{Cooperative}
 
@@ -113,31 +147,30 @@ In this scenario, agents work together towards a shared collective goal. It usua
 
 \textcite{du_improving_2023} introduces collaborative debate as a way to improve the factual validity and the mathematical and strategic reasoning across a number of tasks. First, a set of LLMs generates possible answers to a question. Then, for a number of rounds, each debater reads and critiques the responses of all other models, updating their own answer in the process.
 
-Inspired by human group dynamics, \textcite{chen2023agentversefacilitatingmultiagentcollaboration} proposes AgentVerse, a framework for problem-solving. Its process is divided into four steps. First, a recruiter agent decomposes the task by writing a set of expert descriptions for each agent. Then, the selected agents collaborate to decide on the actions to take. This communication can have a horizontal structure, where all agents share and integrate their decisions to decide the action to take (often used for consulting/tool use), or a vertical structure, where a solver agent proposes an initial solution and a set of reviewers critique it to drive iterative refinement (ideal for math/software development tasks). Finally, the action is executed, and feedback is provided by assessing the difference between the current state and the desired goal.
-
-%TODO: Inquire Dialogue \cite{black_generative_2007}
+Inspired by human group dynamics, \textcite{chen2023agentversefacilitatingmultiagentcollaboration} proposes AgentVerse, a framework for problem-solving. Its process is divided into four steps. First, a recruiter agent determines the group's composition by writing a set of expert descriptions, one per agent, based on the goal. Then, the selected agents collaborate to decide on the actions to take. This communication can have a horizontal structure, where all agents share and integrate their decisions to decide on the action to take, often used for consulting or tool use, or a vertical structure, where a solver agent proposes an initial solution and a set of reviewers critiques it to drive iterative refinement, which is ideal for math or software development tasks. Finally, the chosen action is executed, transitioning the environment to a new state, which is then evaluated. In this last stage, a feedback mechanism assesses the difference between the new state and the desired goal and returns verbal feedback that describes where the current solution falls short and suggests how to improve it. This evaluator can be a human, in a human-in-the-loop setting, or another agent that produces the feedback automatically, depending on the implementation. If the goal is not yet met, the feedback is routed back to the recruitment stage, which uses it, together with the goal, to adjust the group's composition in the next round. This cycle repeats until the goal is reached.
 
 \subsection{Adversarial}
-Competition occurs when agents have conflicting objectives and seek to maximize their own interests, often with limited resources \parencite{tran2025multiagentcollaborationmechanismssurvey, Li2024}.
+Competition occurs when agents have conflicting objectives and seek to maximise their own interests, often with limited resources \parencite{tran2025multiagentcollaborationmechanismssurvey, Li2024}.
 
 \subsubsection{Debate}
-Inspired by \textcite{irving2018aisafetydebate}'s idea of debate as an approach to \ac{AI} alignment, \textcite{khan_debating_2024} implements an information-asymmetric debate where two expert models (debaters) argue for different sides over N rounds, attempting to persuade a weaker model (judge) that must identify the correct side. This work has the objective of answering the question "can weaker models assess the correctness of stronger models?", motivated by a future where humans need to supervise more powerful models.
+Inspired by \textcite{irving2018aisafetydebate}'s idea of debate as an approach to \ac{AI} alignment, \textcite{khan_debating_2024} implements an information-asymmetric debate where two expert models (debaters) argue for different sides over N rounds, attempting to persuade a weaker model (judge) that must identify the correct side. This work has the objective of answering the question ``can weaker models assess the correctness of stronger models?'', motivated by a future where humans need to supervise more powerful models.
 
-Another example of adversarial debate is the framework ChatEval by \textcite{chan2023chatevalbetterllmbasedevaluators}, designed to evaluate the quality of responses generated by different models. At the end of the debate, instead of asking the debater agents to reach a consensus, they derive the final results through majority vote.
+Another example of debate is the ChatEval framework by \textcite{chan2023chatevalbetterllmbasedevaluators}, designed to evaluate the quality of responses generated by different models. At the end of the debate, instead of asking the debater agents to reach a consensus, the framework aggregates the individual judgements: by majority vote when the task is a direct comparison, or by averaging the individual scores when a numerical score is required.
+
 
 \subsubsection{Game-Theoretic Scenarios}
 
-Multiple works evaluate \acp{LLM}' strategic reasoning on game-theoretic scenarios. \textcite{feng2025surveylargelanguagemodelbased} distinguishes two types of games. Choice-focused if there is little to no communication between the participants (e.g., Poker \cite{yim2024evaluatingenhancingllmsagent}) or communication-focused when communication is the main component of the game (e.g., Negotiation \cite{bianchi_how_2024}).
+Multiple works evaluate \acp{LLM}' strategic reasoning on game-theoretic scenarios. \textcite{feng2025surveylargelanguagemodelbased} distinguishes two types of games: choice-focused, if there is little to no communication between the participants (e.g., Poker \cite{zhuang2025pokerbenchtraininglargelanguage}), or communication-focused, when communication is the main component of the game (e.g., Negotiation \cite{bianchi_how_2024}).
 
-\textcite{zhan-etal-2024-lets} define negotiation as the process by which two or more parties attempt to resolve their opposing interests. Negotiation is an interesting evaluation scenario for \acp{LLM} since, in order to be successful at it, agents need to interpret the competitor's actions and underlying intentions so that they can adapt their strategy accordingly. \textcite{bianchi_how_2024} proposed NegotiationArena, an open-source framework for evaluating and probing the negotiation abilities of \ac{LLM} agents. In it, they evaluated three scenarios:
+[TODO: Include Negotiation Definition]. Negotiation is an interesting evaluation scenario for \acp{LLM} since, in order to be successful at it, agents need to interpret the competitor's actions and underlying intentions so that they can adapt their strategy accordingly. \textcite{bianchi_how_2024} proposed NegotiationArena, an open-source framework for evaluating and probing the negotiation abilities of \ac{LLM} agents. In it, they evaluated three scenarios:
 
 \begin{itemize}
-    \item Ultimatum Game: This is a classical game in game theory where one agent starts with all of the game resources and in order to keep part of it, the agent must propose a split and convince another agent to accept it. If the agent rejects it, the game is over and they both get nothing. \textcite{bianchi_how_2024} made a modification in relation to the classical game, allowing multiple turns, so there could be negotiation between the agents. The agent who secures more resources is considered the winner.
-    \item Trading Game: In this game, each agent has a set of resources and a goal (e.g., maximize its total resources). For a number of rounds, the agents make proposals to each other until one accepts a proposal. Similar to the Ultimatum Game, the agent who obtains more resources is considered the winner.
-    \item Price Negotiations: In this scenario, two competing agents, a seller looking to sell an item needs to negotiate a price with the buyer. This is an incomplete information game since each agent has private information (the seller’s cost and the buyer’s willingness to pay), which is not directly observable by the other party. An agent wins if the agreed price is closer to the opponent’s valuation than to its own.
+    \item Ultimatum Game: This is a classical game in game theory where one agent starts with all of the game resources and, in order to keep part of them, the agent must propose a split and convince another agent to accept it. If the agent rejects it, the game is over and they both get nothing. \textcite{bianchi_how_2024} made a modification in relation to the classical game, allowing multiple turns, so there could be negotiation between the agents. The agent who secures more resources is considered the winner.
+    \item Trading Game: In this game, each agent has a set of resources and a goal (e.g., maximise its total resources). For a number of rounds, the agents make proposals to each other until one accepts a proposal. Similar to the Ultimatum Game, the agent who obtains more resources is considered the winner.
+    \item Price Negotiations: This scenario involves two agents with opposing roles: a \textit{seller}, who owns an item and wants to sell it at the highest possible price, and a \textit{buyer}, who wants to acquire it at the lowest. The two must negotiate until they agree on a price or one of them walks away. This is an incomplete information game since each agent has private information (the seller's cost and the buyer's willingness to pay), which is not directly observable by the other party. An agent wins if the agreed price is closer to the opponent's valuation than to its own.
 \end{itemize}
 
-The framework used two types of metrics: win rate and average payoff. By analyzing them, we can get meaningful comparisons of the models' ability to negotiate with others.
+The framework used two types of metrics: win rate and average payoff. By analysing them, we can get meaningful comparisons of the models' ability to negotiate with others.
 
 \subsection{Mixed}
 
