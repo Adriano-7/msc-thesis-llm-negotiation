@@ -143,14 +143,14 @@ Following \textcite{bianchi_how_2024}, we analyse whether assigning a social per
 \end{tabular}
 \end{table}
 
-\subsection{Self-Correction} \label{sec:retry-ablation} 
+\subsection{Parse-Error Retry Loop} \label{sec:retry-ablation} 
 
-A practical obstacle with smaller open-weight models was that they frequently produced responses violating the required tag format, which could not be parsed into a valid move, thereby ending the game prematurely. To address this, we assess whether a simple error detection followed by a retry mechanism could improve the completion rate. When a response fails to parse, the agent receives an error message containing the invalid response and the corresponding parser error, and is asked to resubmit its move in the correct format; this repeats up to \texttt{max\_retries} times, after which the game ends unparsed and is counted as incomplete. Figure~\ref{fig:retry_loop} illustrates this loop. We compare the baseline (\texttt{max\_retries}\,$=0$) against \texttt{max\_retries}\,$=3$ across the model cross-play and social personas experiments.
+A practical obstacle with smaller open-weight models was that they frequently produced responses violating the required tag format, which could not be parsed into a valid move, thereby ending the game prematurely. To address this, we assess whether a simple error detection followed by a retry mechanism could improve the completion rate. When a response fails to parse, the agent receives an error message containing the invalid response and the corresponding parser error, and is asked to resubmit its move in the correct format; this repeats up to \texttt{max\_retries} times, after which the game ends unparsed and is counted as incomplete. We refer to this mechanism as the \emph{parse-error retry loop}. In the taxonomy of \textcite{kamoi-etal-2024-llms} introduced in Section~\ref{sec:self-refinement}, it is the \emph{externally grounded} form of self-correction: the parser error is an objective signal that the move is malformed, much like the output of a code interpreter, whereas the Self-Refine loop of Section~\ref{sec:self-refine} is \emph{intrinsic} and has no external measure of move quality to act on. We compare the baseline (\texttt{max\_retries}\,$=0$) against \texttt{max\_retries}\,$=3$ across the model cross-play and social personas experiments.
 
 \begin{figure}
     \centering
     \includegraphics[width=0.8\linewidth]{figures/methodology/SelfCorrection___Figure_page.jpg}
-    \caption{The self-correction loop. This approach is applied in each turn. A move is committed only once it parses into the expected tag format; otherwise, the agent is fed the parser error and asked to re-generate the response, up to \texttt{max\_retries} times, before the game is considered as incomplete. Unlike the Self-Refine loop of Figure~\ref{fig:self_refine_loop}, this loop is involuntary (triggered only when a parsing failure occurs) and corrects \emph{format} rather than the quality of the move.}
+    \caption{The parse-error retry loop. This approach is applied in each turn. A move is committed only once it parses into the expected tag format; otherwise, the agent is fed the parser error and asked to re-generate the response, up to \texttt{max\_retries} times, before the game is considered as incomplete. Unlike the Self-Refine loop of Figure~\ref{fig:self_refine_loop}, this loop is involuntary (triggered only when a parsing failure occurs) and corrects \emph{format} rather than the quality of the move.}
     \label{fig:retry_loop}
 \end{figure}
 
