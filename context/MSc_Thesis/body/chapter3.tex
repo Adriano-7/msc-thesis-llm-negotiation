@@ -2,12 +2,12 @@
 
 \chapter{Methodology} \label{chap:methodology}
 
-This chapter describes how the negotiation capabilities of open-weight \acp{LLM} were evaluated and how the two inference-time techniques studied in this thesis (Self-Refine and Team Negotiation) were implemented. Section~\ref{sec:na-framework} introduces the NegotiationArena framework of \textcite{bianchi_how_2024}, which is shared across all experiments, together with its three game scenarios (i.e., Price Negotiation, Trading, and Ultimatum) and the metrics used to score them. Section~\ref{sec:models-infra} presents the models under evaluation and the infrastructure used to run them. The remaining sections describe the experimental design for each of the three contributions: benchmarking open-weight models (Section~\ref{sec:benchmarking}), self-refine (Section~\ref{sec:self-refine}), and team-based negotiation (Section~\ref{sec:team-negotiation}). Table~\ref{tab:experiment-design} summarises the full experimental design.
+This chapter describes how the negotiation capabilities of open-weight \acp{LLM} were evaluated and how the two inference-time techniques studied in this dissertation (Self-Refine and Team Negotiation) were implemented. Section~\ref{sec:na-framework} introduces the NegotiationArena framework of \textcite{bianchi_how_2024}, which is shared across all experiments, together with its three game scenarios (i.e., Price Negotiation, Trading, and Ultimatum) and the metrics used to score them. Section~\ref{sec:models-infra} presents the models under evaluation and the infrastructure used to run them. The remaining sections describe the experimental design for each of the three contributions: benchmarking open-weight models (Section~\ref{sec:benchmarking}), self-refine (Section~\ref{sec:self-refine}), and team-based negotiation (Section~\ref{sec:team-negotiation}). Table~\ref{tab:experiment-design} summarises the full experimental design.
 
 \begin{table}
 \centering
 \small
-\caption{Summary of the experimental design. All experiments are run on each of the three games.  For each game, we report averaged results over $30$ runs, covering all combinations of model pairs and conditions. . The parse-error retry ablation (Sec.~\ref{sec:retry-ablation}) re-runs the benchmark cross-play and the social-persona conditions with \texttt{max\_retries}\,$=3$ and compares them against their \texttt{max\_retries}\,$=0$ baselines.}
+\caption{Summary of the experimental design. All experiments are run on each of the three games. For each game, we report averaged results over $30$ runs, covering all combinations of model pairs and conditions. The parse-error retry ablation (Sec.~\ref{sec:retry-ablation}) re-runs the benchmark cross-play and the social-persona conditions with \texttt{max\_retries}\,$=3$ and compares them against their \texttt{max\_retries}\,$=0$ baselines.}
 \label{tab:experiment-design}
 \begin{tabular}{llll}
 \toprule
@@ -40,7 +40,7 @@ This is an incomplete-information game in which a seller and a buyer negotiate t
 
 \paragraph{}
 
- At every turn, an agent must express its move using a fixed set of structured, XML-like tags: a private \texttt{<reason>} block, which is never shown to the opponent, followed by game-specific tags such as \texttt{<player answer>} and \texttt{<newly proposed trade>} in the Trading and Buy-Sell games or \texttt{<move>} in the Ultimatum Game. These tags are parsed at runtime to extract the move, so a missing or malformed tag leaves the response unparseable, which can end the game prematurely. The full system prompts and tag specifications for each game are available in Appendix~\ref{ap2:na-prompts}. The default parameters used are summarized in Table~\ref{tab:game-setup}.
+At every turn, an agent must express its move using a fixed set of structured, XML-like tags: a private \texttt{<reason>} block, which is never shown to the opponent, followed by game-specific tags such as \texttt{<player answer>} and \texttt{<newly proposed trade>} in the Trading and Buy-Sell games or \texttt{<move>} in the Ultimatum Game. These tags are parsed at runtime to extract the move, so a missing or malformed tag leaves the response unparseable, which can end the game prematurely. The full system prompts and tag specifications for each game are available in Appendix~\ref{ap2:na-prompts}. The default parameters used are summarized in Table~\ref{tab:game-setup}.
  
 \begin{table}
     \centering
@@ -59,7 +59,7 @@ This is an incomplete-information game in which a seller and a buyer negotiate t
 
 \subsection{Evaluation Metrics}\label{subsec:eval-metrics}
 
-Negotiation performance is measured using the two metrics adopted in the NegotiationArena (Win Rate and Average Payoff), complemented by a Completion Rate.
+Negotiation performance is measured using the two metrics adopted in NegotiationArena (Win Rate and Average Payoff), complemented by a Completion Rate.
 
 \begin{itemize}
     \item \textbf{Win Rate:} Percentage of \textit{completed} games in which a party obtained a higher payoff than the other. As in NegotiationArena, ties are ignored.
@@ -71,7 +71,7 @@ Negotiation performance is measured using the two metrics adopted in the Negotia
 
 Open-weight models vary considerably in scale, so our objective was to group them into comparable parameter tiers in order to measure performance differences across model sizes. We defined three tiers: 4–9B, 12–14B, and 24–27B parameters. 
 
-For each tier, we selected models from three families: Qwen (with thinking mode disabled), Mistral, and Gemma. Maintaining a consistent version across all tiers was not possible for Qwen and Mistral, so we included models from both Qwen 3 and Qwen 3.5, and from Ministral and Mistral Small, respectively.  We initially considered Llama models as well, but observed very low adherence to the required output format with this family of models. Given the additional computational overhead this would entail, we excluded them from the benchmark. The selected models are listed in Table~\ref{tab:experiment-models}.
+For each tier, we selected models from three families: Qwen (with thinking mode disabled), Mistral, and Gemma. Maintaining a consistent version across all tiers was not possible for Qwen and Mistral, so we included models from both Qwen 3 and Qwen 3.5, and from Ministral and Mistral Small, respectively. We initially considered Llama models as well, but observed very low adherence to the required output format with this family of models. Given the additional computational overhead this would entail, we excluded them from the benchmark. The selected models are listed in Table~\ref{tab:experiment-models}.
 
 We applied $8$-bit quantization (\texttt{bitsandbytes}\footnote{\url{https://github.com/bitsandbytes-foundation/bitsandbytes}}) to Gemma, Qwen, and Mistral-Small models; the Ministral models are already distributed in native FP8 precision. Generation uses temperature $0.7$ and top-p $0.9$ sampling, with a maximum of $1024$ new tokens per generation call.
 
@@ -113,7 +113,7 @@ The first contribution follows the experimental framework of NegotiationArena \c
 
 \subsection{Model Cross-Play} \label{sec:cross-play}
 
-To measure how well current open-weight models negotiate among themselves, we run a round-robin within each parameter tier. Each ordered pairing is played for 30 games in each of the three scenarios, using the default parameters of Table~\ref{tab:game-setup}. Because the games are role-asymmetric, both orderings of each pair are executed. 
+To measure how well current open-weight models negotiate among themselves, we run a round-robin within each parameter tier. Each ordered pairing is played for 30 games in each of the three scenarios, using the default parameters shown in Table~\ref{tab:game-setup}. Because the games are role-asymmetric, both orderings of each pair are executed. 
 
 \subsection{Social Personas} \label{sec:personas}
 
@@ -122,7 +122,7 @@ Following \textcite{bianchi_how_2024}, we analyse whether assigning a social per
 \begin{table}
 \centering
 \small
-\caption{Persona prompts appended to Player~2's system message in the persona experiments \cite{bianchi_how_2024}.}
+\caption{Persona prompts appended to Player~2's system message in the persona experiments~\cite{bianchi_how_2024}.}
 \label{tab:persona-prompts}
 \begin{tabular}{llp{8.5cm}}
 \toprule
@@ -164,7 +164,7 @@ We then investigate whether a model negotiates better when given the chance to c
 
 \begin{figure}
     \centering
-    \includegraphics[width=0.8\linewidth]{figures//methodology/SelfRefine___Figure.jpg}
+    \includegraphics[width=0.8\linewidth]{figures/methodology/SelfRefine___Figure.jpg}
     \caption{Self-Refine technique. After generating an initial draft (Phase 1), the agent critiques its output along five criteria (Phase 2). Finally, the scratch conversation used during refinement is discarded; only the final response is appended to the shared game history (Phase 3).}
     \label{fig:self_refine_loop}
 \end{figure}
@@ -175,7 +175,7 @@ Whenever an agent is asked to choose a move, it first produces an initial draft 
 \item \textbf{Format:} whether every required tag is present and parseable;
 \item \textbf{Payoff Alignment:} whether the proposed trade advances the agent's own valuation or goal;
 \item \textbf{Opponent Plausibility:} whether the move is likely to be accepted given the dialogue so far;
-\item \textbf{Consistency:} whether the reasoning, message, and move agree with one another;
+\item \textbf{Consistency:} whether the reasoning, message, and move agree with one another; and
 \item \textbf{Rule Compliance:} whether the proposal budget and turn limits are respected.
 \end{itemize}
 
@@ -187,7 +187,7 @@ Unlike the previous experiments, each move requires five model calls: one initia
 
 \section{Team Negotiation} \label{sec:team-negotiation}
 
-The final contribution replaces a single negotiation party with a \textit{team} of \textit{N} models that debate internally before emitting one move. Earlier (pre-\acs{LLM}) research in automated multi-agent systems has shown that team-based negotiation strategies generally outperform those of single agents \cite{S_nchez_Anguix_2013}. In parallel, recent multi-agent work shows that letting several language models propose, critique, and vote on a shared answer can raise quality above that of any single member, whether through round-table consensus \cite{chen2024reconcileroundtableconferenceimproves} or debate \cite{du2023improvingfactualityreasoninglanguage}. We bring these ideas together and ask whether a deliberating team of LLMs negotiates better than a single agent. 
+The final contribution replaces a single negotiation party with a \textit{team} of \textit{N} models that debate internally before emitting one move. Earlier (pre-\acs{LLM}) research in automated multi-agent systems formalised \emph{agent-based negotiation teams} and the voting strategies a team can use to commit to a joint move \cite{S_nchez_Anguix_2013}. In parallel, recent multi-agent work shows that letting several language models propose, critique, and vote on a shared answer can raise quality above that of any single member, whether through round-table consensus \cite{chen2024reconcileroundtableconferenceimproves} or debate \cite{3692070.3692537}. We bring these ideas together and ask whether a deliberating team of LLMs negotiates better than a single agent. 
 
 \begin{figure}
     \centering
@@ -206,7 +206,7 @@ Finally, in the \textbf{consensus} phase, the revised drafts form a slate of can
 
 The entire deliberation process (i.e., drafting, discussion, and ranking prompts) is run privately. Once the team's move is chosen, the history is rolled back to the initial snapshot, and only the agreed move is appended to each member's history. The opposition party, therefore, sees exactly one move per turn, with none of the internal deliberation process. One complication follows from this rollback: the reasoning attached to the winning move was written in the context of the discussion and may refer to teammates that are no longer visible once the deliberation is erased. To keep each member's private history coherent on subsequent turns, before committing the move, the winning member rewrites its \texttt{<reason>} block into a first-person reasoning that mentions no teammates, candidates, ranking, or ``team'', while keeping the same strategy and conclusion (Listing~\ref{lst:team-reason}).
 
-To understand the impact of diversity in team-based negotiations, we compare \textbf{homogeneous} teams, made of \textit{N} copies of a single model, against \textbf{heterogeneous} teams whose members are drawn from different model families. We fix the team size at $N = 3$ and the number of discussion rounds at $R = 2$. For this experiment, we only analysed the models in the small category (12--14B). The heterogeneous team is composed of one model from each family.  
+To understand the impact of diversity in team-based negotiations, we compare \textbf{homogeneous} teams, made of \textit{N} copies of a single model, against \textbf{heterogeneous} teams whose members are drawn from different model families. We fix the team size at $N = 3$ and the number of discussion rounds at $R = 2$. For this experiment, we only analysed the models in the small category (12--14B). The heterogeneous team is composed of one model from each family.
 
 A homogeneous team plays only against a single agent of its own model: a team of three Gemma-based agents faces a single Gemma-based agent, a team of three Qwen-based agents faces a single Qwen-based agent, and a team of three Mistral-based agents faces a single Mistral-based agent. The heterogeneous team matches against each of the three families in turn.
 

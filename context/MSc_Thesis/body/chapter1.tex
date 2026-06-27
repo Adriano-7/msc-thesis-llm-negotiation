@@ -10,36 +10,39 @@
 
 \chapter{Introduction} \label{chap:intro}
 
-Negotiation is one of the most common forms of human interaction, present whenever people with different goals must reach a joint decision. Succeeding at it is hard: a negotiator must interpret the other party's intentions, plan several moves ahead and act on incomplete information. 
+Negotiation is one of the most common forms of human interaction, present whenever people with different goals must reach a joint decision. Succeeding at it is hard: a negotiator must interpret the other party's intentions, plan several moves ahead, and act on incomplete information. 
 
-\acp{LLM} are increasingly deployed as agents that act on a user's behalf, interact with other agents, and make decisions under uncertainty. Negotiation is a useful setting to evaluate these agents: it requires the abilities above, while remaining concretely measurable in a way most tasks are not.
+\acp{LLM} are increasingly deployed as agents that act on a user's behalf, interact with other agents, and make decisions under uncertainty. Negotiation is a useful setting for evaluating such agents: it requires the abilities above and is measurable in a way most tasks are not.
 
-NegotiationArena \parencite{bianchi_how_2024} provides an open-source framework to do precisely this, evaluating \ac{LLM} agents across three scenarios (price negotiation, resource trading and a multi-turn ultimatum game) using win rate and payoff as metrics. It is a strong basis for studying negotiation, but its original results covered only proprietary models, some of which have since been deprecated. This raises concerns about reproducibility and accessibility of the results and leaves open the question of how the smaller, openly available models behave in the same scenarios.
+NegotiationArena \parencite{bianchi_how_2024} provides an open-source framework to do precisely this, evaluating \ac{LLM} agents across three scenarios (price negotiation, resource trading, and a multi-turn ultimatum game) using win rate and payoff as metrics. It is a strong basis for studying negotiation, but its original results covered only proprietary models, some of which have since been deprecated. This raises concerns about reproducibility and accessibility of the results and leaves open the question of how the smaller, openly available models behave in the same scenarios.
 
-Because negotiation is hard, and retraining large models is costly, a natural follow-up question is whether their outcomes can be improved at inference time, without changing the weights. Two ideas are particularly promising. The first is Self-Refine \parencite{madaan_self-refine_2023}, in which an agent critiques and rewrites its own answer before committing to it, a technique shown to help on tasks such as mathematical and code reasoning. The second is multi-agent deliberation, in which several models propose, discuss and vote on a shared answer. Recent work reports quality gains from round-table \parencite{chen2024reconcileroundtableconferenceimproves} and debate \parencite{du2023improvingfactualityreasoninglanguage}, and earlier, pre-\ac{LLM} research found that team-based negotiation tends to outperform single agents \parencite{S_nchez_Anguix_2013}. Both techniques, however, multiply the cost so the central question is not only whether they help, but whether any gains justify the additional cost.
+Because negotiation is hard, and retraining large models is costly, a natural follow-up question is whether their outcomes can be improved at inference time, without changing the weights. Two ideas are particularly promising. The first is Self-Refine \parencite{madaan_self-refine_2023}, in which an agent critiques and rewrites its own answer before committing to it, a technique shown to help on tasks such as mathematical and code reasoning. The second is multi-agent deliberation, in which several agents propose, discuss and vote on a shared answer. Recent work reports quality gains from round-table \parencite{chen2024reconcileroundtableconferenceimproves} and debate \parencite{3692070.3692537}, and earlier, pre-\ac{LLM} research formalised agent-based negotiation teams and how their members aggregate decisions into a single move \parencite{S_nchez_Anguix_2013}. Both techniques, however, increase inference costs, so the central question is not only whether they help, but whether any gains justify the additional cost.
 
 \section{Research Questions}
-This thesis is guided by the following research questions:
+This dissertation is guided by the following research questions:
 
 \begin{itemize}
     \item \textit{RQ1: How well do open-weight LLMs perform in negotiation scenarios?}
-    \item \textit{RQ2: As inference-time techniques have shown promise individually, to what extent do they affect outcomes in multi-agent negotiation contexts?}
-    \item \textit{RQ3: Can team-based negotiation, where each side is represented by a group of LLM agents that deliberate before responding, lead to stronger negotiation outcomes?}
+    \item \textit{RQ2: As inference-time techniques have shown promise in other settings, to what extent do they affect outcomes in multi-agent negotiation contexts?}
+    \begin{itemize}
+        \item \textit{RQ2.1: Do the social-persona effects that raised GPT-4's win rate and payoff transfer to open-weight models?}
+        \item \textit{RQ2.2: Does a draft $\rightarrow$ critique $\rightarrow$ rewrite (Self-Refine) loop improve an agent's negotiation outcomes enough to justify its additional inference cost?}
+        \item \textit{RQ2.3: Does replacing a single negotiating party with a deliberating team of models improve outcomes over a single agent, and does team diversity (homogeneous versus heterogeneous) matter?}
+    \end{itemize}
 \end{itemize}
 
-To answer them, we keep the NegotiationArena games and protocol unchanged and replace its proprietary agents with open-weight models drawn from three families (Gemma, Mistral, and Qwen) and grouped into three parameter tiers. RQ1 is addressed by a round-robin cross-play of these nine models within each tier on the three games, complemented by a replication of the NegotiationArena social-persona experiment. RQ2 is addressed by ... RQ3 is addressed by replacing a single party with a team of three models that draft moves independently, discuss them, and select one by a Borda consensus vote, comparing homogeneous teams (three copies of one model) against heterogeneous ones (one model per family).
+To answer them, we keep the NegotiationArena games and protocol unchanged and replace its proprietary \ac{LLM}s with open-weight \ac{LLM}s drawn from three families (Gemma, Mistral, and Qwen) and grouped into three parameter tiers. RQ1 is addressed by a round-robin cross-play of these nine models within each tier on the three games, comparing their behaviour against that reported for proprietary models. The three subquestions of RQ2 each take up one inference-time technique. RQ2.1 replicates the NegotiationArena social-persona experiment; RQ2.2 evaluates a Self-Refine loop in which an agent critiques and rewrites its own move before committing it; and RQ2.3 introduces a team protocol that replaces a single party with three models that draft moves independently, discuss them, and select one via a Borda consensus vote, comparing homogeneous teams (three copies of one model) against heterogeneous ones (one model per family).
 
-This thesis makes the following contributions:
-
+This dissertation makes the following contributions:
 \begin{itemize}
-    \item An open-weight benchmark of nine models across three families and three parameter tiers, cross-played on the three NegotiationArena games and compared against the behaviours reported for proprietary models
-    \item A replication of the NegotiationArena social-persona experiment (\textit{desperate} and \textit{cunning}) on open-weight models
-    \item A parse-error retry loop that lets an agent resubmit a malformed move, recovering the majority of protocol failures and raising completion rates.
-    \item An evaluation of Self-Refine as an inference-time technique for negotiation.
-    \item A team-negotiation protocol in which one party is replaced by three models that draft, discuss and select a move by Borda consensus, together with a comparison of homogeneous and heterogeneous teams.
+    \item An open-weight benchmark of nine models across three families and three parameter tiers, cross-played on the three NegotiationArena games and compared against the behaviours reported for proprietary models;
+    \item A replication of the NegotiationArena social-persona experiment (\textit{desperate} and \textit{cunning}) on open-weight models;
+    \item A parse-error retry loop that lets an agent resubmit a malformed move, recovering most protocol failures and raising completion rates;
+    \item An evaluation of Self-Refine as an inference-time technique for negotiation;
+    \item A team-negotiation protocol in which one party is replaced by three models that draft, discuss, and select a move via Borda consensus, together with a comparison of homogeneous and heterogeneous teams; and
     \item An extension of NegotiationArena to local open-weight inference, together with support for running the experiments on SLURM clusters and Kaggle.
 \end{itemize}
 
 \section{Document Structure}
 
-The document is organized as follows. Chapter~\ref{chap:litreview} reviews the background and related work, covering \ldots. Chapter~\ref{chap:methodology} describes the methodology, including the NegotiationArena framework and its three games, the open-weight models and infrastructure used to run them, the Self-Refine technique, and the team-negotiation. Chapter~\ref{chap:results} presents and discusses the results for each of these experiments, relating the observed behaviours to those reported for proprietary models. Finally, Chapter~\ref{chap:conclusion} summarises the main findings, reflects on the difficulties and limitations of the study, and outlines directions for future work.
+The document is organized as follows. Chapter~\ref{chap:litreview} reviews the background and related work, covering \ldots. Chapter~\ref{chap:methodology} describes the methodology, including the NegotiationArena framework and its three games, the open-weight models and infrastructure used to run them, the Self-Refine technique, and the team-negotiation protocol. Chapter~\ref{chap:results} presents and discusses the results for each of these experiments, relating the observed behaviours to those reported for proprietary models. Finally, Chapter~\ref{chap:conclusion} summarises the main findings, reflects on the difficulties and limitations of the study, and outlines directions for future work.
