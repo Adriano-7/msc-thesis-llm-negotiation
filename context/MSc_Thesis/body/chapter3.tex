@@ -23,24 +23,24 @@ Team negotiation (Sec.~\ref{sec:team-negotiation})      & Small  & Team vs.\ sin
 
 \section{NegotiationArena Framework} \label{sec:na-framework}
 
-\textcite{bianchi_how_2024} introduced NegotiationArena, an open-source framework to evaluate and analyze the negotiation abilities of LLM-based agents. The original work focused on proprietary models, some of which have since been deprecated; we keep the games and protocol unchanged, but replace the agents with the open-weight models identified in Table~\ref{tab:experiment-models} and extend it by implementing two inference-time techniques (Sections~\ref{sec:self-refine} and~\ref{sec:team-negotiation}). 
+\textcite{bianchi_how_2024} introduced NegotiationArena, an open-source framework to evaluate and analyse the negotiation abilities of LLM-based agents. The original work focused on proprietary models, some of which have since been deprecated; we keep the games and protocol unchanged, but replace the agents with the open-weight models identified in Table~\ref{tab:experiment-models} and extend it by implementing two inference-time techniques (Sections~\ref{sec:self-refine} and~\ref{sec:team-negotiation}). 
 
 \subsection{Games} \label{sec:games}
 
 In each scenario, two agents alternate turns for up to a fixed number of rounds, or until one side terminates the game. Before each move, the agent reasons privately step by step; this reasoning is never revealed to the opponent.
 
-\paragraph{Resource Exchange Scenario (Trading game).}
-In the trading game, each party starts with a set of resources and aims to maximise its total holdings. The parties exchange proposals until one is accepted or the maximum number of rounds is reached. The agent with the greater gain wins.
-
 \paragraph{Multi-Turn Ultimatum Game.}
-In this variation of the classic Ultimatum Game \cite{doi:10.1126/science.1082976}, one agent receives all of the game's resources but must propose a split that the other accepts in order for either to keep any of it. The second agent can either accept, counter-propose a new split, or reject outright, causing both agents to lose all resources. If no agreement is reached within the maximum number of rounds, both agents lose everything. The winner is the agent with the higher share of the agreed split.
+In this variation of the classic Ultimatum Game, one agent receives all of the game's resources but must propose a split that the other accepts in order for either to keep any of it. On each turn, a player may \textsc{Accept} the current split, issue a counter-\textsc{Proposal}, or \textsc{Reject} it outright, causing both agents to lose all resources. If no agreement is reached within the maximum number of rounds, both agents lose everything. The winner is the agent with the higher share of the agreed split.
 
-\paragraph{Seller and Buyer Scenario.}
-This is an incomplete-information game in which a seller and a buyer negotiate the price of an item. Each party holds a private valuation: the seller knows its production cost and the buyer its willingness to pay. On each turn, a player may issue a \textsc{Proposal}, \textsc{Accept} the opponent's offer, or \textsc{Reject} it (ending the game with no deal). An agent wins if the agreed price is closer to the opponent's valuation than to its own.
+\paragraph{Trading Game.}
+In the Trading Game, each party starts with a set of resources and aims to maximise its total holdings. On each turn, a player may issue a \textsc{Proposal} for a new trade, \textsc{Accept} the standing offer, or wait for a better one. The parties exchange proposals until one is accepted or the maximum number of rounds is reached. The agent with the greater gain wins.
+
+\paragraph{BuySell Game.}
+This is an incomplete-information game in which a seller and a buyer negotiate the price of an item. Each party holds a private valuation: the seller knows its production cost and the buyer its willingness to pay. On each turn, a player may issue a \textsc{Proposal}, \textsc{Accept} the opponent's offer, or \textsc{Reject} it (ending the game with no deal). The agent with the higher payoff wins, where the seller's payoff is the agreed price minus its cost and the buyer's is its willingness to pay minus that price.
 
 \paragraph{}
 
-At every turn, an agent must express its move using a fixed set of structured, XML-like tags: a private \texttt{<reason>} block, which is never shown to the opponent, followed by game-specific tags such as \texttt{<player answer>} and \texttt{<newly proposed trade>} in the Trading and Buy-Sell games or \texttt{<move>} in the Ultimatum Game. These tags are parsed at runtime to extract the move, so a missing or malformed tag leaves the response unparseable, which can end the game prematurely. The full system prompts and tag specifications for each game are available in Appendix~\ref{ap2:na-prompts}. The default parameters used are summarized in Table~\ref{tab:game-setup}.
+At every turn, an agent must express its move using a fixed set of structured, XML-like tags: a private \texttt{<reason>} block, which is never shown to the opponent, followed by game-specific tags such as \texttt{<player answer>} and \texttt{<newly proposed trade>} in the Trading and Buy-Sell games or \texttt{<move>} in the Ultimatum Game. These tags are parsed at runtime to extract the move, so a missing or malformed tag leaves the response unparseable, which can end the game prematurely. The full system prompts and tag specifications for each game are available in Appendix~\ref{ap2:na-prompts}. The default parameters used are summarised in Table~\ref{tab:game-setup}.
  
 \begin{table}
     \centering
@@ -50,7 +50,7 @@ At every turn, an agent must express its move using a fixed set of structured, X
         \toprule
         \textbf{Game} & \textbf{Parameters} & \textbf{Default values} \\
         \midrule
-        Price Negotiation & seller cost / buyer value / money & 40 / 60 / 100 \\
+        BuySell & seller cost / buyer value / money & 40 / 60 / 100 \\
         Trading           & P1 resources / P2 resources       & \{X:25, Y:5\} / \{X:5, Y:25\} \\
         Ultimatum         & pot                               & \$100 \\
         \bottomrule
@@ -145,12 +145,12 @@ Following \textcite{bianchi_how_2024}, we analyse whether assigning a social per
 
 \subsection{Parse-Error Retry Loop} \label{sec:retry-ablation} 
 
-A practical obstacle with smaller open-weight models was that they frequently produced responses violating the required tag format, which could not be parsed into a valid move, thereby ending the game prematurely. To address this, we assess whether a simple error detection followed by a retry mechanism could improve the completion rate. When a response fails to parse, the agent receives an error message containing the invalid response and the corresponding parser error, and is asked to resubmit its move in the correct format; this repeats up to \texttt{max\_retries} times, after which the game ends unparsed and is counted as incomplete. We refer to this mechanism as the \emph{parse-error retry loop}. In the taxonomy of \textcite{kamoi-etal-2024-llms} introduced in Section~\ref{sec:self-refinement}, it is the \emph{externally grounded} form of self-correction: the parser error is an objective signal that the move is malformed, much like the output of a code interpreter, whereas the Self-Refine loop of Section~\ref{sec:self-refine} is \emph{intrinsic} and has no external measure of move quality to act on. We compare the baseline (\texttt{max\_retries}\,$=0$) against \texttt{max\_retries}\,$=3$ across the model cross-play and social personas experiments.
+A practical obstacle with smaller open-weight models was that they frequently produced responses violating the required tag format, which could not be parsed into a valid move, thereby ending the game prematurely. To address this, we assess whether a simple error detection followed by a retry mechanism could improve the completion rate. When a response fails to parse, the agent receives an error message containing the invalid response and the corresponding parser error, and is asked to resubmit its move in the correct format; this repeats up to \texttt{max\_retries} times, after which the game ends unparsed and is counted as incomplete. We refer to this mechanism as the \emph{parse-error retry loop} (Figure~\ref{fig:retry_loop}. In the taxonomy of \textcite{kamoi-etal-2024-llms} introduced in Section~\ref{sec:self-refinement}, it is the \emph{externally grounded} form of self-correction: the parser error is an objective signal that the move is malformed, much like the output of a code interpreter, whereas the Self-Refine loop of Section~\ref{sec:self-refine} is \emph{intrinsic} and has no external measure of move quality to act on. We compare the baseline (\texttt{max\_retries}\,$=0$) against \texttt{max\_retries}\,$=3$ across the model cross-play and social personas experiments.
 
 \begin{figure}
     \centering
     \includegraphics[width=0.8\linewidth]{figures/methodology/SelfCorrection___Figure_page.jpg}
-    \caption{The parse-error retry loop. This approach is applied in each turn. A move is committed only once it parses into the expected tag format; otherwise, the agent is fed the parser error and asked to re-generate the response, up to \texttt{max\_retries} times, before the game is considered as incomplete. Unlike the Self-Refine loop of Figure~\ref{fig:self_refine_loop}, this loop is involuntary (triggered only when a parsing failure occurs) and corrects \emph{format} rather than the quality of the move.}
+    \caption{The parse-error retry loop. This approach is applied in each turn. A move is committed only once it parses into the expected tag format; otherwise, the agent is fed the parser error and asked to re-generate the response, up to \texttt{max\_retries} times, before the game is considered as incomplete. Unlike the Self-Refine loop of Figure~\ref{fig:self_refine_loop}, this loop is involuntary (triggered only when a parsing failure occurs) and only corrects \emph{format}.}
     \label{fig:retry_loop}
 \end{figure}
 
@@ -165,11 +165,11 @@ We then investigate whether a model negotiates better when given the chance to c
 \begin{figure}
     \centering
     \includegraphics[width=0.8\linewidth]{figures/methodology/SelfRefine___Figure.jpg}
-    \caption{Self-Refine technique. After generating an initial draft (Phase 1), the agent critiques its output along five criteria (Phase 2). Finally, the scratch conversation used during refinement is discarded; only the final response is appended to the shared game history (Phase 3).}
+    \caption{Self-Refine technique. After generating an initial draft (Phase 1), the agent generates feedback on its output along five criteria (Phase 2). Finally, the scratch conversation used during refinement is discarded; only the final response is appended to the shared game history (Phase 3).}
     \label{fig:self_refine_loop}
 \end{figure}
 
-Whenever an agent is asked to choose a move, it first produces an initial draft and then runs two critique-and-rewrite iterations. Each iteration prompts the agent to critique its current draft along the following criteria:
+Whenever an agent is asked to choose a move, it first produces an initial draft and then runs two feedback-and-rewrite iterations. Each iteration prompts the agent to generate feedback on its current draft along the following criteria:
 
 \begin{itemize}
 \item \textbf{Format:} whether every required tag is present and parseable;
@@ -179,7 +179,7 @@ Whenever an agent is asked to choose a move, it first produces an initial draft 
 \item \textbf{Rule Compliance:} whether the proposal budget and turn limits are respected.
 \end{itemize}
 
-A second \textit{refine} prompt then asks the model to rewrite the response, incorporating the critiques. The critique and intermediate drafts are produced on a scratch copy of the conversation; once refinement ends, this scratch copy is discarded, and only the final response is appended to the shared game history.
+A second \textit{refine} prompt then asks the model to rewrite the response, incorporating the feedback. The feedback and intermediate drafts are produced on a scratch copy of the conversation; once refinement ends, this scratch copy is discarded, and only the final response is appended to the shared game history.
 
 We evaluate three conditions. The first is a baseline in which both parties use the default strategy, while the other two apply Self-Refine either to the first or the second party. As in the social-persona experiment (Section~\ref{sec:personas}), every condition is run in self-play; each condition is played for 30 games across all three scenarios and model tiers. The feedback and refinement prompts are given in Appendix~\ref{ap1:sr-prompts}.
 
@@ -202,7 +202,7 @@ In the \textbf{drafting} phase, each member independently proposes a possible mo
 
 In the \textbf{discussion} phase, every member is shown their own draft alongside their teammates' proposals. Each member then keeps, merges, or adopts whichever proposal they judge strongest for the team and re-emits a full move. The discussion prompt is given in Appendix~\ref{ap1:team-prompts}.
 
-Finally, in the \textbf{consensus} phase, the revised drafts form a slate of candidate moves (one draft per member) and each member ranks this entire set from best to worst (Listing~\ref{lst:team-ranking}). A Borda count over these rankings selects the move: in a ranking of $s$ candidates, the candidate in the top position ($k=0$) earns $s-1-k = s-1$ points, the next $s-2$, and so on down to $0$ for the last. The move with the highest total wins. In case of a tie, the move with the lowest index wins. Unlike the Similarity-Based Borda Voting strategy \cite{S_nchez_Anguix_2013}, accepting the opponent's offer is not handled separately; it is simply one of the moves a member can draft, so a single vote decides both \textit{what} to propose and whether to \textit{accept}, with no separate voting phase to determine acceptance.
+Finally, in the \textbf{consensus} phase, the revised drafts form a slate of candidate moves (one draft per member) and each member ranks this entire set from best to worst (Listing~\ref{lst:team-ranking}). A Borda count over these rankings selects the move: in a ranking of $s$ candidates, the candidate in the top position ($k=0$) earns $s-1-k = s-1$ points, the next $s-2$, and so on down to $0$ for the last. The move with the highest total wins. In case of a tie, the move with the lowest index wins. Unlike the Similarity Borda Voting strategy \cite{S_nchez_Anguix_2013}, accepting the opponent's offer is not handled separately; it is simply one of the moves a member can draft, so a single vote decides both \textit{what} to propose and whether to \textit{accept}, with no separate voting phase to determine acceptance.
 
 The entire deliberation process (i.e., drafting, discussion, and ranking prompts) is run privately. Once the team's move is chosen, the history is rolled back to the initial snapshot, and only the agreed move is appended to each member's history. The opposition party, therefore, sees exactly one move per turn, with none of the internal deliberation process. One complication follows from this rollback: the reasoning attached to the winning move was written in the context of the discussion and may refer to teammates that are no longer visible once the deliberation is erased. To keep each member's private history coherent on subsequent turns, before committing the move, the winning member rewrites its \texttt{<reason>} block into a first-person reasoning that mentions no teammates, candidates, ranking, or ``team'', while keeping the same strategy and conclusion (Listing~\ref{lst:team-reason}).
 
