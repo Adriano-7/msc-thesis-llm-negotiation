@@ -1,80 +1,134 @@
-# How Well Can LLMs Negotiate? The NegotiationArena Platform and Analysis
+# Inference-Time Techniques for Open-Weight Language Models in Negotiation Games
 
-## Experiments
+Benchmarking open-weight LLMs in two-party negotiation games, and testing whether two inference-time techniques (Self-Refine and team deliberation) are worth their extra cost.
 
-Experiments are available in the `experiments` folder. There is one running file for
-each game we have run. 
+This repository is a fork of [NegotiationArena](https://github.com/vinid/NegotiationArena) (Bianchi et al., ICML 2024) and contains the code, experiments, and analysis for my MSc dissertation (Master's in Artificial Intelligence, FEUP/FCUP, University of Porto). It extends the original framework with local open-weight inference, a parse-error retry loop, Self-Refine agents, team negotiation, and SLURM/Kaggle execution.
 
-If you want to recreate the plots, you can look at the notebook and analysis folders. You will find a way
-to load all the games in one batch and then run the analysis on them.
+**[Read the dissertation (PDF)](context/MSc_Thesis/main.pdf)**
 
-The log files store the entire logs. We have also saved the broken games in the logs_error folders
-in case you want to look at them.
+## Overview
 
+The original NegotiationArena evaluation covered only proprietary models, some of which have since been discontinued. This dissertation replays its three negotiation games with **nine open-weight models** from three families (**Gemma, Mistral, Qwen**) across three parameter tiers (**4–9B, 12–14B, 24–27B**), and then measures the effect of two inference-time techniques: **Self-Refine**, where an agent critiques and rewrites its move before committing it, and **team negotiation**, where one party is replaced by three models that draft, discuss, and vote on a joint move.
 
-### Using The WebApp
+<p align="center">
+  <img src="_notebooks/oss/figures/1_cross_play_benchmark/winrate_game_family_tier.png" alt="Win rate by game, family, and tier" width="850">
+</p>
+<p align="center"><em>Cross-play win rate by family and parameter tier. Qwen is the most consistent family, winning 63–67% of games overall.</em></p>
 
-You can load the webapp by running the following command:
+## Research Questions
 
-```bash
-streamlit run app.py
+- **RQ1**: How well do open-weight LLMs perform in negotiation scenarios?
+- **RQ2**: As inference-time techniques have shown promise in other settings, to what extent do they affect outcomes in multi-agent negotiation contexts?
+  - **RQ2.1**: Do the social-persona effects that raised GPT-4's win rate and payoff transfer to open-weight models?
+  - **RQ2.2**: Does a draft → critique → rewrite (Self-Refine) loop improve an agent's negotiation outcomes enough to justify its additional inference cost?
+  - **RQ2.3**: Does replacing a single negotiating party with a deliberating team of models improve outcomes over a single agent, and does team diversity (homogeneous versus heterogeneous) matter?
+
+## The Games
+
+| Game | Description | Default setup |
+|------|-------------|---------------|
+| **BuySell** | A seller with a private production cost and a buyer with a private willingness to pay negotiate the price of an object, or walk away. | Seller cost 40 ZUP, buyer value 60 ZUP, buyer budget 100 ZUP |
+| **Trading** | Two agents hold complementary resource bundles and exchange resources to maximize their final holdings. | P1 `{X:25, Y:5}`, P2 `{X:5, Y:25}` |
+| **Multi-Turn Ultimatum** | A proposer splits a pot; the responder may accept, counter, or reject. | 100 ZUP pot |
+
+Every game is an alternating conversation where moves are structured XML tags inside free-form messages. Reported metrics are **win rate** (share of completed, non-tied games won), **average payoff** (game-specific surplus, in ZUP where applicable), and **completion rate** (share of games reaching a valid terminal state).
+
+## Models
+
+| Tier | Gemma | Mistral | Qwen |
+|------|-------|---------|------|
+| `very_small` (4–9B) | Gemma 3 4B IT | Ministral 3 8B | Qwen3.5 9B |
+| `small` (12–14B) | Gemma 3 12B IT | Ministral 3 14B | Qwen3 14B |
+| `medium` (24–27B) | Gemma 3 27B IT | Mistral Small 3.2 24B | Qwen3.5 27B |
+
+Models run locally through HuggingFace `transformers` (`ratbench/agents/hf_agent.py`). Gemma and Qwen use 8-bit quantization at the largest tiers; Qwen runs with thinking disabled. Model groups are defined once under `_shared` in `configs/experiments.yaml`.
+
+## Inference-Time Techniques
+
+### Self-Refine
+
+Before committing a move, the agent drafts it, critiques the draft along five negotiation-specific axes (format, payoff alignment, opponent plausibility, consistency, and rule compliance), and rewrites it. The critique/rewrite loop runs twice, and only the final move enters the public game history.
+
+<p align="center">
+  <img src="context/MSc_Thesis/figures/methodology/SelfRefine___Figure.jpg" alt="Self-Refine loop" width="700">
+</p>
+<p align="center"><em>The Self-Refine loop: initial draft, two critique/rewrite iterations, final commit.</em></p>
+
+### Team Negotiation
+
+One negotiating party is replaced by a private team of three models. Members draft moves independently, revise them over two discussion rounds while seeing each other's drafts, and rank the final slate; a Borda count selects the move the team commits.
+
+<p align="center">
+  <img src="context/MSc_Thesis/figures/methodology/team_based_negotiation_fig.png" alt="Team negotiation protocol" width="700">
+</p>
+<p align="center"><em>The team deliberation protocol: independent drafts, discussion rounds, Borda consensus.</em></p>
+
+## Repository Structure
+
+```text
+MultiAgent-Negotiation/
+├── ratbench/                  # Core framework
+│   ├── agents/                #   HF agent, Self-Refine agent, team agent
+│   ├── alternating_game.py    #   Game engine, parse-error retry loop, trace logging
+│   └── game_objects/          #   Resource, Valuation, Trade, Goal primitives
+├── games/                     # BuySell, Trading, Multi-Turn Ultimatum
+├── runner/run_experiment.py   # Experiment runner (config-driven)
+├── configs/experiments.yaml   # Single source of truth for all experiments
+├── .logs/                     # Experiment results (game states + full transcripts)
+├── slurm/                     # HPC launchers and server profiles (MIA, Deucalion)
+├── kaggle/                    # Free-GPU execution via Kaggle kernels
+├── explorer/                  # Streamlit app to browse games and analyses
+├── _notebooks/oss/            # Analysis notebooks that generate all figures
+└── context/MSc_Thesis/        # The dissertation (LaTeX source + PDF)
 ```
 
-The webapp is found under the `explorer` folder. It is a simple interface to load games and 
-explore them and provides barebones support, but it's pretty good to get a quick overview of the
-results of the games.
-
-## Running Experiments on HPC
-
-Experiments are configured in `configs/experiments.yaml` and launched via SLURM. The launcher supports multiple HPC servers through server profiles.
-
-### Quick Start
+## Getting Started
 
 ```bash
-# Run all experiments on MIA (default server)
+pip install -r requirements.txt
+```
+
+Run an experiment locally (all experiments are defined in `configs/experiments.yaml`):
+
+```bash
+# Section-one benchmark cross-play for BuySell
+python runner/run_experiment.py --config configs/experiments.yaml --experiment buysell_section_one
+
+# A single Self-Refine game, useful for smoke-testing
+python runner/run_experiment.py --config configs/experiments.yaml --experiment trading_self_refine_v1 --num_runs 1
+
+# Pick a different model tier
+python runner/run_experiment.py --config configs/experiments.yaml --experiment buysell_section_one --model_group medium
+
+# Resume an interrupted sweep, topping every cell up to 30 runs
+python runner/run_experiment.py --config configs/experiments.yaml --experiment trading_section_one --resume --target_runs 30
+```
+
+Browse results in the Streamlit explorer:
+
+```bash
+streamlit run explorer/app.py
+```
+
+The explorer includes pages for reading full game conversations (with Self-Refine and deliberation traces), tracking experiment completion, and per-section analyses (benchmark, personas, Self-Refine, team negotiation, Kaggle runs).
+
+<details>
+<summary><strong>SLURM clusters (MIA, Deucalion)</strong></summary>
+
+Experiments are launched through server profiles in `slurm/servers/`:
+
+```bash
+# Run all experiments on MIA
 SERVER=mia bash slurm/launch.sh
 
-# Run all experiments on Deucalion
-SERVER=deucalion bash slurm/launch.sh
-```
+# One experiment, one tier, on Deucalion
+SERVER=deucalion EXPERIMENTS="buysell_section_one" SIZES="small" bash slurm/launch.sh
 
-### Choosing Partitions, GPUs, and Other Resources
-
-Every SLURM parameter can be overridden at launch time:
-
-```bash
-# Deucalion: use 80 GB A100s instead of 40 GB
-SERVER=deucalion PARTITION=normal-a100-80 bash slurm/launch.sh
-
-# Deucalion: dev partition for quick testing (4 h limit)
-SERVER=deucalion PARTITION=dev-a100-40 TIME=4:00:00 bash slurm/launch.sh
-
-# Use 4 GPUs
-SERVER=deucalion GPUS=4 bash slurm/launch.sh
-
-# MIA: single GPU, less memory
-SERVER=mia GPUS=1 MEM=32G bash slurm/launch.sh
-```
-
-### Selecting Experiments and Sizes
-
-```bash
-# Run only one experiment at one size
-SERVER=mia EXPERIMENTS="buysell_section_one" SIZES="very_small" bash slurm/launch.sh
-
-# Run all experiments at multiple sizes
-SERVER=mia SIZES="very_small small medium" bash slurm/launch.sh
-```
-
-### Dry Run
-
-Preview the sbatch commands without actually submitting:
-
-```bash
+# Preview the sbatch commands without submitting
 SERVER=deucalion DRY_RUN=1 bash slurm/launch.sh
 ```
 
-### Available Overrides
+Every SLURM parameter can be overridden at launch time:
 
 | Variable | Description | Example |
 |----------|-------------|---------|
@@ -90,79 +144,27 @@ SERVER=deucalion DRY_RUN=1 bash slurm/launch.sh
 | `SIZES` | Space-separated model groups | `"very_small small"` |
 | `DRY_RUN` | Preview without submitting | `1` |
 
-### Adding a New Server
+To add a new server, create a profile at `slurm/servers/<name>.sh` and launch with `SERVER=<name>`. On Deucalion, fill in `PROJECT_DIR` and `GPU_ACCOUNT` in its profile first; GPU partitions have no internet access, so models must be pre-downloaded (`download_models.py`).
 
-Create a profile at `slurm/servers/<name>.sh` (see existing profiles for the template), then launch with `SERVER=<name> bash slurm/launch.sh`.
+</details>
 
-### Deucalion Setup
+<details>
+<summary><strong>Kaggle free GPUs</strong></summary>
 
-Before using Deucalion, edit `slurm/servers/deucalion.sh` and fill in:
-- `PROJECT_DIR` — your `/projects/<project>` path
-- `GPU_ACCOUNT` — your GPU billing account (e.g., `F20240001g`)
-
-Models must be pre-downloaded since GPU partitions have no internet access.
-
----
-
-## Running Experiments on Kaggle
-
-Experiments can also be submitted to Kaggle as free GPU kernels. Each kernel clones the repo, runs the experiment, and pushes results back to a per-run GitHub branch.
-
-### Quick Start
+Experiments can be submitted as Kaggle kernels. Each kernel clones the repo, runs the experiment, and pushes results back to a `kaggle-results/<experiment>-<size>-<ref8>-<timestamp>` branch:
 
 ```bash
-# Submit all default experiments (default account)
-bash kaggle/launch.sh
+# Submit experiments (optionally with a named account profile from kaggle/accounts/)
+EXPERIMENTS="buysell_section_one" SIZES="very_small" KAGGLE_ACCOUNT=<name> bash kaggle/launch.sh
 
-# Submit specific experiments and sizes
-EXPERIMENTS="buysell_section_one" SIZES="very_small" bash kaggle/launch.sh
+# Check kernel status without opening the browser
+bash kaggle/status.sh --all-accounts --recent
 
-# Use a named account profile (see kaggle/accounts/)
-KAGGLE_ACCOUNT=adrianomachado1 bash kaggle/launch.sh
-
-# Preview without actually submitting
-DRY_RUN=1 bash kaggle/launch.sh
+# Retrieve results
+git fetch && git branch -r | grep kaggle-results/
 ```
 
-### Checking Status
-
-Use `kaggle/status.sh` to check kernel statuses without opening the browser:
-
-```bash
-# Check all staged kernels for one account
-KAGGLE_ACCOUNT=adrianomachado1 bash kaggle/status.sh
-
-# Check across all account profiles
-bash kaggle/status.sh --all-accounts
-
-# List 20 most-recently-run kernels
-KAGGLE_ACCOUNT=adrianomachado1 bash kaggle/status.sh --recent
-
-# Combine flags
-bash kaggle/status.sh --all-accounts --recent --page-size 10
-```
-
-### Retrieving Results
-
-Each kernel pushes its output to a branch named `kaggle-results/<experiment>-<size>-<ref8>-<timestamp>` when it finishes:
-
-```bash
-git fetch
-git branch -r | grep kaggle-results/
-git checkout kaggle-results/<branch-name>
-```
-
-If the git push fails, a `results.tar.gz` tarball is left in the kernel's output files and can be downloaded with:
-
-```bash
-kaggle kernels output <owner>/<slug> -p ./results/
-```
-
-### Multiple Accounts
-
-Account profiles live in `kaggle/accounts/<name>.env`. Each file sets `KAGGLE_USERNAME` and `KAGGLE_KEY`. Pass `KAGGLE_ACCOUNT=<name>` to either `launch.sh` or `status.sh` to use that profile.
-
-### Available Overrides
+If the git push fails, a `results.tar.gz` is left in the kernel output and can be fetched with `kaggle kernels output <owner>/<slug> -p ./results/`.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
@@ -171,66 +173,19 @@ Account profiles live in `kaggle/accounts/<name>.env`. Each file sets `KAGGLE_US
 | `GIT_REF` | Commit to run | `HEAD` |
 | `EXPERIMENTS` | Space-separated experiment names | section-two defaults |
 | `SIZES` | Space-separated model groups | `none` |
-| `DRY_RUN` | Preview without submitting | — |
+| `DRY_RUN` | Preview without submitting | not set |
 
----
+</details>
 
-## Running Games
+## How It Works
 
-Running and modifying a game is relatively easy. This is for example the
-main interface used to run a BuySellGame.
+- **Game engine** (`ratbench/alternating_game.py`): agents alternate turns in a shared conversation; moves are parsed from structured tags. When parsing fails, a **retry loop** feeds the parser error back to the agent and asks it to regenerate, up to `max_retries` times. This recovers most protocol failures of smaller models and is ablated separately (`*_retry3` experiment variants).
+- **Self-Refine** (`ratbench/agents/agent_behaviours.py`): implements the loop described above; the full draft/critique/rewrite trace is persisted per turn alongside the game state.
+- **Team negotiation** (`ratbench/agents/negotiation_team_agent.py`): implements the deliberation protocol; the winning rationale is rewritten in first person so the public history never references teammates, and the full deliberation trace is persisted per turn.
+- **Analysis**: the four notebooks in `_notebooks/oss/` (cross-play benchmark, personas, Self-Refine, team negotiation) consume `.logs/` and regenerate all result figures in the dissertation.
 
-```python
+This work builds on:
 
-a1 = ChatGPTAgent(agent_name="Player 1", model="gpt-4-1106-preview")
-a2 = ChatGPTAgent(agent_name="Player 2", model="gpt-4-1106-preview")
-
-c = BuySellGame(players=[a1, a2],
-    iterations=10,
-    resources_support_set=Resources({"X": 0}),
-    player_goals=[
-        SellerGoal(cost_of_production=Valuation({"X": 40})),
-        BuyerGoal(willingness_to_pay=Valuation({"X": 20})),
-    ],
-    player_initial_resources=[
-        Resources({"X": 1}),
-        Resources({MONEY_TOKEN: 100}),
-    ],
-    player_roles=[
-        "You are Player 1.",
-        "You are Player 2.",
-    ],
-    player_social_behaviour=[
-        "",
-        "you care only about your goals",  # sound angry. do not try to find middle ground. care only about yourself",
-    ],
-    log_dir="./.logs/buysell",
-)
-
-c.run()
-```
-
-
-# Getting to Know The Platform
-
-Making a system both flexible and easy to use is a hard task. We have thus decided to break
-flexibility in some parts of the system to make it easier to implement new tasks. This is a choice, that 
-is kind of bad under a point of view of system design but so there is only so much we can do.
-
-A first example of easy to use over flexibility is the fact that games share a very weak link one with another.
-This means that if you want to modify a game, you might as well copy-paste the entire game and modify it to your needs,
-as opposed to inheriting some abstract class.
-
-
-## Agents
-
-The Agents we define are simple abstractions on top of Large Language Models. They are stateless 
-for the most part, meaning that the only thing they are going to keep track of is the conversation history and some
-minor variable to keep track of the game state. This is done to avoid having to deal with the complexity of 
-giving agents access to the objects that represent the resources of the game.
-
-Agents are called with predefined names that are available in the "constants" module.
-Variables are `AGENT_ONE` and `AGENT_TWO` for the first and second agent respectively. 
-Games rely on the fact that agents are named in this way to keep track of the conversation history.
-
-
+- **NegotiationArena**: Bianchi et al., *How well can LLMs negotiate? NegotiationArena platform and analysis*, ICML 2024.
+- **Self-Refine**: Madaan et al., *Self-Refine: Iterative refinement with self-feedback*, NeurIPS 2023.
+- **RECONCILE**: Chen, Saha, and Bansal, *ReConcile: Round-table conference improves reasoning via consensus among diverse LLMs*, ACL 2024.
